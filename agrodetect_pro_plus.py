@@ -3,7 +3,7 @@ from PIL import Image
 import random
 import time
 import matplotlib.pyplot as plt
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image as RLImage
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
 from reportlab.lib.styles import getSampleStyleSheet
 import io
 
@@ -43,15 +43,18 @@ if st.session_state.page == "Home":
         image = Image.open(uploaded_file)
         st.image(image, width=300)
 
-        # RUN MODEL ONLY ONCE
-        if "result_data" not in st.session_state:
+        file_bytes = uploaded_file.getvalue()
+
+        # ---------- MODEL RUN ONLY ON NEW IMAGE ----------
+        if "last_image" not in st.session_state or st.session_state.last_image != file_bytes:
+            st.session_state.last_image = file_bytes
+
             with st.spinner("Analyzing..."):
                 time.sleep(1)
 
             green = random.randint(30, 70)
             yellow = random.randint(10, 40)
             brown = 100 - green - yellow
-
             if brown < 0:
                 brown = 10
 
@@ -97,15 +100,14 @@ if st.session_state.page == "Home":
         fig, ax = plt.subplots()
         ax.pie(sizes, labels=labels, autopct='%1.1f%%', colors=colors)
         ax.axis('equal')
-
         st.pyplot(fig)
 
         # ---------- INPUT ----------
         leaf_name = st.text_input("Enter Leaf Name", key="leaf_input")
 
+        # ---------- SAVE ----------
         if st.button("Save to History"):
 
-            # SAVE WITHOUT CHANGING RESULT
             st.session_state.history.append({
                 "name": leaf_name,
                 "result": data["result"],
@@ -117,11 +119,7 @@ if st.session_state.page == "Home":
                 "image": uploaded_file.getvalue()
             })
 
-            st.success("Saved!")
-
-            # RESET PROPERLY
-            del st.session_state.result_data
-            st.rerun()
+            st.success("Saved successfully!")
 
 # ---------- HISTORY ----------
 elif st.session_state.page == "History":
@@ -145,7 +143,7 @@ elif st.session_state.page == "History":
                 st.write(f"Confidence: {item['confidence']}%")
                 st.write(f"Condition: {item['condition']}")
 
-                # PDF
+                # ---------- PDF ----------
                 buffer = io.BytesIO()
                 doc = SimpleDocTemplate(buffer)
                 styles = getSampleStyleSheet()
@@ -181,12 +179,32 @@ elif st.session_state.page == "Analytics":
         ax.pie([good, bad], labels=["Good", "Bad"], autopct='%1.1f%%')
         st.pyplot(fig)
 
-        st.write(f"Total: {len(st.session_state.history)}")
+        st.write(f"Total Images: {len(st.session_state.history)}")
         st.write(f"Good: {good}")
         st.write(f"Bad: {bad}")
 
 # ---------- ABOUT ----------
 elif st.session_state.page == "About":
 
-    st.title("ℹ About")
-    st.write("AgroDetect AI helps detect plant health using AI.")
+    st.title("ℹ About AgroDetect AI")
+
+    st.markdown("""
+### 🌿 What is AgroDetect AI?
+AgroDetect AI is an intelligent system designed to analyze plant leaf images and detect health conditions.
+
+### 🚀 Key Features
+- 📸 Upload leaf images instantly  
+- 🤖 AI-based health prediction  
+- 📊 Visual analysis using pie charts  
+- 🧾 Download detailed reports (PDF)  
+- 📂 Maintain history of analyzed leaves  
+
+### 🎯 Purpose
+To help farmers, students, and researchers quickly identify plant issues and improve crop health.
+
+### 💡 Future Improvements
+- Real deep learning model integration  
+- Disease-specific detection  
+- Mobile optimization  
+- Cloud database storage  
+""")
