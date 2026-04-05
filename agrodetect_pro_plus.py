@@ -520,7 +520,6 @@ if st.session_state.page == "Home":
         st.pyplot(fig)
 
         st.write("---")
-st.write("---")
 
 leaf_name = st.text_input(
     "Leaf scan name",
