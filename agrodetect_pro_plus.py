@@ -247,9 +247,34 @@ def safe_pie_values(values):
     return arr.tolist()
 
 def make_pie_figure(values, colors, labels):
-    fig, ax = plt.subplots(figsize=(4.2, 4.2))
-    ax.pie(values, labels=labels, autopct='%1.1f%%', colors=colors, startangle=90)
-    ax.axis('equal')
+    fig, ax = plt.subplots(figsize=(4.5, 4.5), facecolor="#0c1722")
+    ax.set_facecolor("#0c1722")
+
+    wedges, _, autotexts = ax.pie(
+        values,
+        autopct="%1.1f%%",
+        colors=colors,
+        startangle=90,
+        wedgeprops={"edgecolor": "#0c1722", "linewidth": 2},
+        pctdistance=0.72
+    )
+
+    legend = ax.legend(
+        wedges,
+        labels,
+        loc="center left",
+        bbox_to_anchor=(1.0, 0.5),
+        frameon=False
+    )
+
+    for text in legend.get_texts():
+        text.set_color("#d5e3f0")
+
+    for t in autotexts:
+        t.set_color("white")
+        t.set_fontsize(10)
+
+    ax.axis("equal")
     return fig
 
 def figure_to_bytes(fig):
@@ -500,7 +525,6 @@ if st.session_state.page == "Home":
 
         st.write("---")
 
-        st.markdown('<div class="analysis-card">', unsafe_allow_html=True)
         st.markdown("#### 📊 Leaf Colour Composition")
         fig = make_pie_figure(
             data["pie_values"],
@@ -508,7 +532,6 @@ if st.session_state.page == "Home":
             ["Green", "Yellow", "Brown"]
         )
         st.pyplot(fig)
-        st.markdown('</div>', unsafe_allow_html=True)
 
         st.write("---")
 
