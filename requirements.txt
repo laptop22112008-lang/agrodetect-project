@@ -3,4 +3,3 @@ pillow
 numpy
 matplotlib
 reportlab
-tensorflow
