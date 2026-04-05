@@ -7,7 +7,7 @@ import time
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image as RLImage, PageBreak
 from reportlab.lib.styles import getSampleStyleSheet
 
-st.set_page_config(page_title="AgroDetect Pro MAX", layout="wide")
+st.set_page_config(page_title="AgroDetect AI", layout="wide")
 
 # ---------------- SESSION ----------------
 if "history" not in st.session_state:
@@ -36,24 +36,37 @@ if st.sidebar.button("📘 About"):
 
 page = st.session_state.page
 
-# ---------------- MODEL ----------------
+# ---------------- SMART MODEL ----------------
 def analyze_leaf(image):
     img = np.array(image)
 
-    green = np.mean(img[:,:,1])
-    red = np.mean(img[:,:,0])
+    r = img[:,:,0] / 255.0
+    g = img[:,:,1] / 255.0
+    b = img[:,:,2] / 255.0
 
-    if red > green + 15:
-        return "BAD", np.random.randint(60,85), "Disease (Brown/Spots)"
-    elif green > red + 10:
-        return "GOOD", np.random.randint(80,98), "Healthy Leaf"
+    green_mask = (g > r) & (g > b)
+    yellow_mask = (r > 0.5) & (g > 0.5) & (b < 0.4)
+    brown_mask = (r > 0.4) & (g < 0.4) & (b < 0.3)
+
+    total = img.shape[0] * img.shape[1]
+
+    green_ratio = np.sum(green_mask) / total
+    yellow_ratio = np.sum(yellow_mask) / total
+    brown_ratio = np.sum(brown_mask) / total
+
+    if green_ratio > 0.6:
+        return "GOOD", round(80 + green_ratio*20,2), "Healthy Leaf"
+    elif brown_ratio > 0.2:
+        return "BAD", round(60 + brown_ratio*30,2), "Disease (Brown Spots)"
+    elif yellow_ratio > 0.2:
+        return "BAD", round(60 + yellow_ratio*30,2), "Nutrient Deficiency"
     else:
-        return "BAD", np.random.randint(60,80), "Nutrient Deficiency"
+        return "BAD", round(55 + (yellow_ratio+brown_ratio)*50,2), "Mild Stress"
 
 # ---------------- HOME ----------------
 if page == "Home":
 
-    st.title("🌿 AgroDetect AI")
+    st.title("🌿 AgroDetect Pro MAX")
     st.subheader("Upload Leaf Image")
 
     file = st.file_uploader("", type=["jpg","png","jpeg"])
@@ -85,7 +98,6 @@ if page == "Home":
         ax.pie(values, labels=labels, colors=colors, autopct='%1.1f%%')
         st.pyplot(fig)
 
-        # INPUT (dynamic key)
         leaf_name = st.text_input(
             "Enter Leaf Name",
             key=f"leaf_name_{st.session_state.input_key}"
@@ -153,12 +165,11 @@ elif page == "History":
             with col1:
                 st.image(h["image"], width=120)
 
-                # 🔥 TOGGLE LOGIC
                 if st.button(f"View {i}"):
                     if st.session_state.selected == i:
-                        st.session_state.selected = None  # close
+                        st.session_state.selected = None
                     else:
-                        st.session_state.selected = i  # open
+                        st.session_state.selected = i
 
             with col2:
                 st.markdown(f"### {h['name']}")
@@ -166,7 +177,7 @@ elif page == "History":
                 st.write(f"Confidence: {h['confidence']}%")
                 st.write(f"Condition: {h['condition']}")
 
-                # INDIVIDUAL PDF
+                # SINGLE PDF
                 buffer = io.BytesIO()
                 doc = SimpleDocTemplate(buffer)
 
@@ -192,7 +203,7 @@ elif page == "History":
                     file_name=f"{h['name']}.pdf"
                 )
 
-        # 🔍 DETAIL VIEW (TOGGLE)
+        # DETAIL VIEW
         if st.session_state.selected is not None:
             st.markdown("---")
             h = history[st.session_state.selected]
@@ -212,7 +223,7 @@ elif page == "About":
 AgroDetect Pro MAX is an AI-powered leaf analysis system.
 
 🌿 Features:
-- Disease detection
+- Smart disease detection
 - Confidence scoring
 - Pie chart visualization
 - History tracking
