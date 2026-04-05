@@ -6,6 +6,7 @@ import matplotlib.patches as mpatches
 from datetime import datetime
 import io
 import hashlib
+import time
 
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image as RLImage, PageBreak
 from reportlab.lib.styles import getSampleStyleSheet
