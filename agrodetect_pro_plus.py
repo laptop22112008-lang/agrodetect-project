@@ -56,9 +56,6 @@ def analyze_leaf(image):
     yellow_ratio = np.sum(yellow_mask) / total_pixels
     brown_ratio = np.sum(brown_mask) / total_pixels
 
-    gray = np.mean(img, axis=2)
-    variance = np.var(gray)
-
     green = int(green_ratio * 100)
     yellow = int(yellow_ratio * 100)
     brown = int(brown_ratio * 100)
@@ -72,6 +69,7 @@ def analyze_leaf(image):
         yellow = int((yellow / total_color) * 100)
         brown = 100 - green - yellow
 
+    # BALANCED DECISION
     if green_ratio > 0.55 and brown_ratio < 0.07 and yellow_ratio < 0.20:
         result = "GOOD"
         condition = "Healthy Leaf"
@@ -175,7 +173,6 @@ elif st.session_state.page == "History":
         st.info("No data yet")
 
     else:
-        merged = io.BytesIO()
 
         for i, item in enumerate(st.session_state.history):
 
@@ -190,12 +187,12 @@ elif st.session_state.page == "History":
                 st.write(f"Confidence: {item['confidence']}%")
                 st.write(f"Condition: {item['condition']}")
 
-                # image file
+                # Save image
                 img_path = f"leaf_{i}.png"
                 with open(img_path, "wb") as f:
                     f.write(item["image"])
 
-                # pie
+                # Pie chart
                 fig, ax = plt.subplots()
                 ax.pie(
                     [item["green"], item["yellow"], item["brown"]],
@@ -208,6 +205,7 @@ elif st.session_state.page == "History":
                 fig.savefig(pie_path)
                 plt.close(fig)
 
+                # PDF
                 buffer = io.BytesIO()
                 doc = SimpleDocTemplate(buffer)
                 styles = getSampleStyleSheet()
@@ -225,48 +223,45 @@ elif st.session_state.page == "History":
 
                 doc.build(content)
 
-                pdf_data = buffer.getvalue()
-
                 st.download_button(
                     "Download Report",
-                    pdf_data,
+                    buffer.getvalue(),
                     file_name=f"{item['name']}.pdf",
                     key=f"download_{i}"
                 )
 
         st.markdown("---")
 
-        # -------- SINGLE BUTTON --------
-        if st.button("Download All Reports"):
+        # ✅ SINGLE BUTTON ONLY
+        merged = io.BytesIO()
+        doc = SimpleDocTemplate(merged)
+        styles = getSampleStyleSheet()
 
-            doc = SimpleDocTemplate(merged)
-            styles = getSampleStyleSheet()
+        final_content = []
 
-            final_content = []
+        for i, item in enumerate(st.session_state.history):
 
-            for i, item in enumerate(st.session_state.history):
+            img_path = f"leaf_{i}.png"
+            pie_path = f"pie_{i}.png"
 
-                img_path = f"leaf_{i}.png"
-                pie_path = f"pie_{i}.png"
+            final_content.append(Paragraph(f"<b>{item['name']}</b>", styles["Title"]))
+            final_content.append(Spacer(1,10))
+            final_content.append(Paragraph(f"Result: {item['result']}", styles["Normal"]))
+            final_content.append(Paragraph(f"Confidence: {item['confidence']}%", styles["Normal"]))
+            final_content.append(Paragraph(f"Condition: {item['condition']}", styles["Normal"]))
+            final_content.append(Spacer(1,10))
+            final_content.append(RLImage(img_path, width=200, height=200))
+            final_content.append(Spacer(1,10))
+            final_content.append(RLImage(pie_path, width=200, height=200))
+            final_content.append(Spacer(1,20))
 
-                final_content.append(Paragraph(f"<b>{item['name']}</b>", styles["Title"]))
-                final_content.append(Spacer(1,10))
-                final_content.append(Paragraph(f"Result: {item['result']}", styles["Normal"]))
-                final_content.append(Paragraph(f"Confidence: {item['confidence']}%", styles["Normal"]))
-                final_content.append(Paragraph(f"Condition: {item['condition']}", styles["Normal"]))
-                final_content.append(Spacer(1,10))
-                final_content.append(RLImage(img_path, width=200, height=200))
-                final_content.append(Spacer(1,10))
-                final_content.append(RLImage(pie_path, width=200, height=200))
-                final_content.append(Spacer(1,20))
+        doc.build(final_content)
 
-            doc.build(final_content)
-
-            st.download_button(
-                "Download All Reports",
-                merged.getvalue(),
-                file_name="All_Leaf_Reports.pdf"
-            )
+        st.download_button(
+            "Download All Reports",
+            merged.getvalue(),
+            file_name="All_Leaf_Reports.pdf"
+        )
 
 # ---------- ANALYTICS ----------
 elif st.session_state.page == "Analytics":
