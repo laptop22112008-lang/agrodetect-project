@@ -8,23 +8,30 @@ import io
 import hashlib
 import time
 
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image as RLImage, PageBreak
+from reportlab.platypus import (
+    SimpleDocTemplate,
+    Paragraph,
+    Spacer,
+    Image as RLImage,
+    PageBreak,
+)
 from reportlab.lib.styles import getSampleStyleSheet
 
 # ─────────────────────────────────────────
-#  CONFIG
+# CONFIG
 # ─────────────────────────────────────────
 st.set_page_config(
     page_title="AgroDetect AI",
     page_icon="🌿",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="expanded",
 )
 
 # ─────────────────────────────────────────
-#  CUSTOM CSS
+# CUSTOM CSS
 # ─────────────────────────────────────────
-st.markdown("""
+st.markdown(
+    """
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700&family=DM+Sans:wght@400;500;700&display=swap');
 
@@ -48,7 +55,6 @@ p, li, label, .stMarkdown, .stText, .stCaption {
     color: #d5e3f0;
 }
 
-/* Sidebar */
 section[data-testid="stSidebar"] {
     background: linear-gradient(180deg, #08111a 0%, #0c1622 100%);
     border-right: 1px solid #183248;
@@ -57,7 +63,6 @@ section[data-testid="stSidebar"] * {
     color: #eef6ff;
 }
 
-/* Buttons */
 .stButton > button {
     background: linear-gradient(135deg, #0ea5e9, #14b8a6) !important;
     color: white !important;
@@ -74,7 +79,6 @@ section[data-testid="stSidebar"] * {
     box-shadow: 0 8px 22px rgba(20,184,166,0.28);
 }
 
-/* Inputs */
 .stTextInput > div > div > input {
     background: #0b1723 !important;
     color: #edf7ee !important;
@@ -89,7 +93,6 @@ section[data-testid="stSidebar"] * {
     padding: 0.8rem;
 }
 
-/* Cards */
 .hero-card, .main-card, .stat-card, .analysis-card, .history-card, .about-card {
     background: linear-gradient(180deg, rgba(10,22,34,0.95), rgba(8,17,26,0.98));
     border: 1px solid #1f3950;
@@ -127,7 +130,6 @@ section[data-testid="stSidebar"] * {
     margin-bottom: 1rem;
 }
 
-/* Badges */
 .good-badge {
     display: inline-block;
     padding: 0.45rem 0.95rem;
@@ -200,17 +202,13 @@ section[data-testid="stSidebar"] * {
     color: #87a5bf;
     font-size: 0.82rem;
 }
-
-.divider {
-    height: 1px;
-    background: linear-gradient(90deg, transparent, #21415b, transparent);
-    margin: 1rem 0;
-}
 </style>
-""", unsafe_allow_html=True)
+""",
+    unsafe_allow_html=True,
+)
 
 # ─────────────────────────────────────────
-#  SESSION STATE
+# SESSION STATE
 # ─────────────────────────────────────────
 if "history" not in st.session_state:
     st.session_state.history = []
@@ -231,12 +229,13 @@ if "saved_hashes" not in st.session_state:
     st.session_state.saved_hashes = []
 
 # ─────────────────────────────────────────
-#  HELPERS
+# HELPERS
 # ─────────────────────────────────────────
 def image_to_bytes(img: Image.Image):
     buf = io.BytesIO()
     img.convert("RGB").save(buf, format="PNG")
     return buf.getvalue()
+
 
 def safe_pie_values(values):
     arr = np.array(values, dtype=float)
@@ -245,6 +244,7 @@ def safe_pie_values(values):
     arr = np.maximum(arr, 0.5)
     arr = arr / np.sum(arr) * 100.0
     return arr.tolist()
+
 
 def make_pie_figure(values, colors, labels):
     fig, ax = plt.subplots(figsize=(4.5, 4.5), facecolor="#0c1722")
@@ -256,7 +256,7 @@ def make_pie_figure(values, colors, labels):
         colors=colors,
         startangle=90,
         wedgeprops={"edgecolor": "#0c1722", "linewidth": 2},
-        pctdistance=0.72
+        pctdistance=0.72,
     )
 
     legend = ax.legend(
@@ -264,7 +264,7 @@ def make_pie_figure(values, colors, labels):
         labels,
         loc="center left",
         bbox_to_anchor=(1.0, 0.5),
-        frameon=False
+        frameon=False,
     )
 
     for text in legend.get_texts():
@@ -277,12 +277,14 @@ def make_pie_figure(values, colors, labels):
     ax.axis("equal")
     return fig
 
+
 def figure_to_bytes(fig):
     buf = io.BytesIO()
     fig.savefig(buf, format="png", bbox_inches="tight", facecolor=fig.get_facecolor())
     plt.close(fig)
     buf.seek(0)
     return buf
+
 
 def build_report_story(item, styles):
     story = []
@@ -297,18 +299,17 @@ def build_report_story(item, styles):
     img_buf = io.BytesIO(item["image_bytes"])
     img_buf.seek(0)
     story.append(RLImage(img_buf, width=200, height=200))
-
     story.append(Spacer(1, 10))
 
     pie_fig = make_pie_figure(
         item["pie_values"],
         ["#14b8a6", "#f59e0b", "#fb7185"],
-        ["Green", "Yellow", "Brown"]
+        ["Green", "Yellow", "Brown"],
     )
     pie_buf = figure_to_bytes(pie_fig)
     story.append(RLImage(pie_buf, width=200, height=200))
-
     return story
+
 
 def build_pdf_bytes(item):
     buffer = io.BytesIO()
@@ -317,6 +318,7 @@ def build_pdf_bytes(item):
     doc.build(build_report_story(item, styles))
     buffer.seek(0)
     return buffer.getvalue()
+
 
 def build_all_pdf_bytes(history):
     buffer = io.BytesIO()
@@ -333,8 +335,9 @@ def build_all_pdf_bytes(history):
     buffer.seek(0)
     return buffer.getvalue()
 
+
 # ─────────────────────────────────────────
-#  MODEL (UNCHANGED BRAIN)
+# MODEL (UNCHANGED BRAIN)
 # ─────────────────────────────────────────
 def analyze_leaf(image):
     img = np.array(image)
@@ -398,10 +401,12 @@ def analyze_leaf(image):
 
     return result, confidence, condition, green, yellow, brown
 
+
 # ─────────────────────────────────────────
-#  HEADER
+# HEADER
 # ─────────────────────────────────────────
-st.markdown("""
+st.markdown(
+    """
 <div class="hero-card">
     <div style="font-family:Sora, sans-serif; font-size:2.1rem; font-weight:700; color:#eef6ff;">
         🌿 AgroDetect AI
@@ -410,13 +415,14 @@ st.markdown("""
         Smart leaf analysis with clean reporting and history tracking
     </div>
 </div>
-""", unsafe_allow_html=True)
+""",
+    unsafe_allow_html=True,
+)
 
 # ─────────────────────────────────────────
-#  NAVIGATION
+# NAVIGATION
 # ─────────────────────────────────────────
 st.sidebar.markdown("### 🌿 AgroDetect AI")
-st.sidebar.caption("Side navigation")
 
 if st.sidebar.button("🏠 Home"):
     st.session_state.page = "Home"
@@ -427,11 +433,8 @@ if st.sidebar.button("📊 Analytics"):
 if st.sidebar.button("ℹ️ About"):
     st.session_state.page = "About"
 
-st.sidebar.markdown("---")
-st.sidebar.caption("Distinct UI · same analysis brain")
-
 # ─────────────────────────────────────────
-#  HOME
+# HOME
 # ─────────────────────────────────────────
 if st.session_state.page == "Home":
     if st.session_state.flash_message:
@@ -444,7 +447,7 @@ if st.session_state.page == "Home":
         "Input source",
         ["📁 Upload Image", "📷 Use Camera"],
         horizontal=True,
-        label_visibility="collapsed"
+        label_visibility="collapsed",
     )
 
     image = None
@@ -500,7 +503,7 @@ if st.session_state.page == "Home":
             icon = "✅" if data["result"] == "GOOD" else "⚠️"
             st.markdown(
                 f"<span class='{badge_class}'>{icon} {data['result']}</span>",
-                unsafe_allow_html=True
+                unsafe_allow_html=True,
             )
             st.write("")
             st.markdown(f"**Condition:** {data['condition']}")
@@ -511,15 +514,15 @@ if st.session_state.page == "Home":
             c1, c2, c3 = st.columns(3)
             c1.markdown(
                 f"<div class='stat-card'><div class='soft-label'>Green</div><div class='soft-value' style='color:#99f6e4'>{data['pie_values'][0]:.0f}%</div></div>",
-                unsafe_allow_html=True
+                unsafe_allow_html=True,
             )
             c2.markdown(
                 f"<div class='stat-card'><div class='soft-label'>Yellow</div><div class='soft-value' style='color:#fde68a'>{data['pie_values'][1]:.0f}%</div></div>",
-                unsafe_allow_html=True
+                unsafe_allow_html=True,
             )
             c3.markdown(
                 f"<div class='stat-card'><div class='soft-label'>Brown</div><div class='soft-value' style='color:#fecaca'>{data['pie_values'][2]:.0f}%</div></div>",
-                unsafe_allow_html=True
+                unsafe_allow_html=True,
             )
             st.markdown('</div>', unsafe_allow_html=True)
 
@@ -529,7 +532,7 @@ if st.session_state.page == "Home":
         fig = make_pie_figure(
             data["pie_values"],
             ["#14b8a6", "#f59e0b", "#fb7185"],
-            ["Green", "Yellow", "Brown"]
+            ["Green", "Yellow", "Brown"],
         )
         st.pyplot(fig)
 
@@ -539,7 +542,7 @@ if st.session_state.page == "Home":
         leaf_name = st.text_input(
             "Leaf scan name",
             placeholder="e.g. Field-A Sample 1",
-            key=f"leaf_name_{st.session_state.input_key}"
+            key=f"leaf_name_{st.session_state.input_key}",
         )
 
         if st.button("💾 Save to History"):
@@ -548,19 +551,21 @@ if st.session_state.page == "Home":
             if file_hash in st.session_state.saved_hashes:
                 st.session_state.flash_message = "This leaf is already saved in history."
             else:
-                st.session_state.history.append({
-                    "name": save_name,
-                    "result": data["result"],
-                    "confidence": data["confidence"],
-                    "condition": data["condition"],
-                    "green": data["green"],
-                    "yellow": data["yellow"],
-                    "brown": data["brown"],
-                    "pie_values": data["pie_values"],
-                    "image_bytes": data["image_bytes"],
-                    "timestamp": datetime.now().strftime("%d %b %Y, %I:%M %p"),
-                    "scan_hash": file_hash
-                })
+                st.session_state.history.append(
+                    {
+                        "name": save_name,
+                        "result": data["result"],
+                        "confidence": data["confidence"],
+                        "condition": data["condition"],
+                        "green": data["green"],
+                        "yellow": data["yellow"],
+                        "brown": data["brown"],
+                        "pie_values": data["pie_values"],
+                        "image_bytes": data["image_bytes"],
+                        "timestamp": datetime.now().strftime("%d %b %Y, %I:%M %p"),
+                        "scan_hash": file_hash,
+                    }
+                )
                 st.session_state.saved_hashes.append(file_hash)
                 st.session_state.flash_message = f"✅ '{save_name}' saved to history!"
                 st.session_state.input_key += 1
@@ -572,19 +577,22 @@ if st.session_state.page == "Home":
         st.info("⬆️ Upload an image or use your camera above to scan a leaf.")
 
 # ─────────────────────────────────────────
-#  HISTORY
+# HISTORY
 # ─────────────────────────────────────────
 elif st.session_state.page == "History":
-    st.markdown("""
-    <div class="hero-card">
-        <div style="font-family:Sora, sans-serif; font-size:2.0rem; font-weight:700; color:#eef6ff;">
-            📁 History
-        </div>
-        <div style="font-size:1rem; color:#76d1ff; margin-top:0.25rem;">
-            Saved analyses with downloadable reports
-        </div>
+    st.markdown(
+        """
+<div class="hero-card">
+    <div style="font-family:Sora, sans-serif; font-size:2.0rem; font-weight:700; color:#eef6ff;">
+        📁 History
     </div>
-    """, unsafe_allow_html=True)
+    <div style="font-size:1rem; color:#76d1ff; margin-top:0.25rem;">
+        Saved analyses with downloadable reports
+    </div>
+</div>
+""",
+        unsafe_allow_html=True,
+    )
 
     if not st.session_state.history:
         st.info("No history yet. Save scans from the Home tab.")
@@ -602,29 +610,32 @@ elif st.session_state.page == "History":
             ts = item.get("timestamp", "—")
             sev_class = "sev-low" if "Low" in sev else ("sev-medium" if "Medium" in sev else "sev-high")
 
-            st.markdown(f"""
-            <div class='history-card'>
-                <div style='display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:6px'>
-                    <b style='font-size:1rem;font-family:Sora,sans-serif;color:#eef6ff'>
-                        #{idx} — {item['name']}
-                    </b>
-                    <span class='small-note'>🕐 {ts}</span>
-                </div>
-                <br>
-                <span class='{badge}'>{icon} {item['result']}</span>
-                &nbsp;<span class='{sev_class}'>{sev if sev else "—"}</span>
-                &nbsp;&nbsp;
-                <span style='color:#cfe8ff'>Condition: {item['condition']}</span><br>
-                <span style='color:#76d1ff;font-size:0.85rem'>Confidence: {item['confidence']}%</span>
-            </div>
-            """, unsafe_allow_html=True)
+            st.markdown(
+                f"""
+<div class='history-card'>
+    <div style='display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:6px'>
+        <b style='font-size:1rem;font-family:Sora,sans-serif;color:#eef6ff'>
+            #{idx} — {item['name']}
+        </b>
+        <span class='small-note'>🕐 {ts}</span>
+    </div>
+    <br>
+    <span class='{badge}'>{icon} {item['result']}</span>
+    &nbsp;<span class='{sev_class}'>{sev if sev else "—"}</span>
+    &nbsp;&nbsp;
+    <span style='color:#cfe8ff'>Condition: {item['condition']}</span><br>
+    <span style='color:#76d1ff;font-size:0.85rem'>Confidence: {item['confidence']}%</span>
+</div>
+""",
+                unsafe_allow_html=True,
+            )
 
             pdf_bytes = build_pdf_bytes(item)
             st.download_button(
                 "Download Report",
                 pdf_bytes,
                 file_name=f"{item['name']}.pdf",
-                key=f"download_{idx}"
+                key=f"download_{idx}",
             )
 
         st.markdown("---")
@@ -633,23 +644,26 @@ elif st.session_state.page == "History":
         st.download_button(
             "Download All Reports",
             all_pdf,
-            file_name="All_Leaf_Reports.pdf"
+            file_name="All_Leaf_Reports.pdf",
         )
 
 # ─────────────────────────────────────────
-#  ANALYTICS
+# ANALYTICS
 # ─────────────────────────────────────────
 elif st.session_state.page == "Analytics":
-    st.markdown("""
-    <div class="hero-card">
-        <div style="font-family:Sora, sans-serif; font-size:2.0rem; font-weight:700; color:#eef6ff;">
-            📊 Analytics
-        </div>
-        <div style="font-size:1rem; color:#76d1ff; margin-top:0.25rem;">
-            Overall scan trends and health summary
-        </div>
+    st.markdown(
+        """
+<div class="hero-card">
+    <div style="font-family:Sora, sans-serif; font-size:2.0rem; font-weight:700; color:#eef6ff;">
+        📊 Analytics
     </div>
-    """, unsafe_allow_html=True)
+    <div style="font-size:1rem; color:#76d1ff; margin-top:0.25rem;">
+        Overall scan trends and health summary
+    </div>
+</div>
+""",
+        unsafe_allow_html=True,
+    )
 
     if st.session_state.history:
         good_count = sum(1 for i in st.session_state.history if i["result"] == "GOOD")
@@ -659,15 +673,15 @@ elif st.session_state.page == "Analytics":
         m1, m2, m3 = st.columns(3)
         m1.markdown(
             f"<div class='stat-card'><div class='soft-label'>Total Scans</div><div class='soft-value'>{total}</div></div>",
-            unsafe_allow_html=True
+            unsafe_allow_html=True,
         )
         m2.markdown(
             f"<div class='stat-card'><div class='soft-label'>Healthy</div><div class='soft-value' style='color:#99f6e4'>{good_count}</div></div>",
-            unsafe_allow_html=True
+            unsafe_allow_html=True,
         )
         m3.markdown(
             f"<div class='stat-card'><div class='soft-label'>Diseased / Deficient</div><div class='soft-value' style='color:#fecaca'>{bad_count}</div></div>",
-            unsafe_allow_html=True
+            unsafe_allow_html=True,
         )
 
         st.write("")
@@ -678,13 +692,16 @@ elif st.session_state.page == "Analytics":
             fig2 = make_pie_figure(
                 [good_count, bad_count],
                 ["#14b8a6", "#fb7185"],
-                ["GOOD", "BAD"]
+                ["GOOD", "BAD"],
             )
             st.pyplot(fig2)
 
         with col_bar:
             st.markdown("##### Confidence per Scan")
-            names = [entry["name"][:12] if entry["name"] else f"Scan {i+1}" for i, entry in enumerate(st.session_state.history)]
+            names = [
+                entry["name"][:12] if entry["name"] else f"Scan {i+1}"
+                for i, entry in enumerate(st.session_state.history)
+            ]
             confidences = [entry["confidence"] for entry in st.session_state.history]
             bar_colors = ["#14b8a6" if entry["result"] == "GOOD" else "#fb7185" for entry in st.session_state.history]
 
@@ -701,62 +718,71 @@ elif st.session_state.page == "Analytics":
             ax3.legend(
                 handles=[
                     mpatches.Patch(color="#14b8a6", label="GOOD"),
-                    mpatches.Patch(color="#fb7185", label="BAD")
+                    mpatches.Patch(color="#fb7185", label="BAD"),
                 ],
                 facecolor="#0c1722",
                 labelcolor="white",
-                edgecolor="#23405c"
+                edgecolor="#23405c",
             )
             st.pyplot(fig3)
     else:
         st.info("No scan data yet. Upload and save leaf images from the Home tab.")
 
 # ─────────────────────────────────────────
-#  ABOUT
+# ABOUT
 # ─────────────────────────────────────────
 elif st.session_state.page == "About":
-    st.markdown("""
-    <div class="hero-card">
-        <div style="font-family:Sora, sans-serif; font-size:2.0rem; font-weight:700; color:#eef6ff;">
-            ℹ️ About AgroDetect AI
-        </div>
-        <div style="font-size:1rem; color:#76d1ff; margin-top:0.25rem;">
-            Smart plant leaf analysis system
-        </div>
+    st.markdown(
+        """
+<div class="hero-card">
+    <div style="font-family:Sora, sans-serif; font-size:2.0rem; font-weight:700; color:#eef6ff;">
+        ℹ️ About AgroDetect AI
     </div>
-    """, unsafe_allow_html=True)
+    <div style="font-size:1rem; color:#76d1ff; margin-top:0.25rem;">
+        Smart plant leaf analysis system
+    </div>
+</div>
+""",
+        unsafe_allow_html=True,
+    )
 
     left, right = st.columns(2, gap="large")
 
     with left:
-        st.markdown("""
-        <div class="about-card">
-            <h4 style="margin-top:0;color:#76d1ff">🌿 What It Does</h4>
-            AgroDetect AI analyses leaf images using colour-ratio intelligence to detect plant health.
-            It provides a clear health result, confidence score, pie chart analysis, and downloadable reports.
-        </div>
-        <div class="about-card">
-            <h4 style="margin-top:0;color:#76d1ff">🚀 Features</h4>
-            • Leaf health detection<br>
-            • Confidence-based prediction<br>
-            • Visual pie chart analysis<br>
-            • History tracking<br>
-            • PDF report downloads
-        </div>
-        """, unsafe_allow_html=True)
+        st.markdown(
+            """
+<div class="about-card">
+    <h4 style="margin-top:0;color:#76d1ff">🌿 What It Does</h4>
+    AgroDetect AI analyses leaf images using colour-ratio intelligence to detect plant health.
+    It provides a clear health result, confidence score, pie chart analysis, and downloadable reports.
+</div>
+<div class="about-card">
+    <h4 style="margin-top:0;color:#76d1ff">🚀 Features</h4>
+    • Leaf health detection<br>
+    • Confidence-based prediction<br>
+    • Visual pie chart analysis<br>
+    • History tracking<br>
+    • PDF report downloads
+</div>
+""",
+            unsafe_allow_html=True,
+        )
 
     with right:
-        st.markdown("""
-        <div class="about-card">
-            <h4 style="margin-top:0;color:#76d1ff">🔬 How It Works</h4>
-            The model checks colour ratios from the uploaded leaf image and uses them to determine
-            whether the leaf is healthy, diseased, or stressed.
-        </div>
-        <div class="about-card">
-            <h4 style="margin-top:0;color:#76d1ff">🔮 Future Scope</h4>
-            • Deep learning based disease detection<br>
-            • Weather and soil integration<br>
-            • Mobile app support<br>
-            • Crop-specific disease classification
-        </div>
-        """, unsafe_allow_html=True)
+        st.markdown(
+            """
+<div class="about-card">
+    <h4 style="margin-top:0;color:#76d1ff">🔬 How It Works</h4>
+    The model checks colour ratios from the uploaded leaf image and uses them to determine
+    whether the leaf is healthy, diseased, or stressed.
+</div>
+<div class="about-card">
+    <h4 style="margin-top:0;color:#76d1ff">🔮 Future Scope</h4>
+    • Deep learning based disease detection<br>
+    • Weather and soil integration<br>
+    • Mobile app support<br>
+    • Crop-specific disease classification
+</div>
+""",
+            unsafe_allow_html=True,
+    )
