@@ -1,22 +1,13 @@
 import streamlit as st
 from PIL import Image
 import numpy as np
-import tensorflow as tf
-import matplotlib.pyplot as plt
 import time
-import io
+import matplotlib.pyplot as plt
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
 from reportlab.lib.styles import getSampleStyleSheet
+import io
 
 st.set_page_config(page_title="AgroDetect AI", layout="wide")
-
-# ---------- LOAD MODEL ----------
-@st.cache_resource
-def load_model():
-    model = tf.keras.applications.MobileNetV2(weights="imagenet", include_top=False)
-    return model
-
-model = load_model()
 
 # ---------- SESSION ----------
 if "history" not in st.session_state:
@@ -25,7 +16,7 @@ if "history" not in st.session_state:
 if "page" not in st.session_state:
     st.session_state.page = "Home"
 
-# ---------- NAV ----------
+# ---------- NAVIGATION ----------
 st.sidebar.title("🌿 Navigation")
 
 if st.sidebar.button("🏠 Home"):
@@ -40,33 +31,65 @@ if st.sidebar.button("📊 Analytics"):
 if st.sidebar.button("ℹ About"):
     st.session_state.page = "About"
 
-# ---------- CNN ANALYSIS ----------
+# ---------- ADVANCED MODEL ----------
 def analyze_leaf(image):
 
-    img = image.resize((224, 224))
-    img_array = np.array(img)
-    img_array = tf.keras.applications.mobilenet_v2.preprocess_input(img_array)
-    img_array = np.expand_dims(img_array, axis=0)
+    img = np.array(image)
 
-    features = model.predict(img_array)
+    r = img[:,:,0].astype(float)
+    g = img[:,:,1].astype(float)
+    b = img[:,:,2].astype(float)
 
-    score = np.mean(features)
+    total = r + g + b + 1e-6
 
-    # Decision logic based on deep features
-    if score > 0:
+    r_norm = r / total
+    g_norm = g / total
+    b_norm = b / total
+
+    green_mask = (g_norm > 0.38) & (g_norm > r_norm) & (g_norm > b_norm)
+    yellow_mask = (r_norm > 0.34) & (g_norm > 0.34) & (b_norm < 0.3)
+    brown_mask = (r_norm > 0.45) & (g_norm < 0.35) & (b_norm < 0.3)
+
+    total_pixels = img.shape[0] * img.shape[1]
+
+    green_ratio = np.sum(green_mask) / total_pixels
+    yellow_ratio = np.sum(yellow_mask) / total_pixels
+    brown_ratio = np.sum(brown_mask) / total_pixels
+
+    # Texture analysis
+    gray = np.mean(img, axis=2)
+    variance = np.var(gray)
+
+    green = int(green_ratio * 100)
+    yellow = int(yellow_ratio * 100)
+    brown = int(brown_ratio * 100)
+
+    total_color = green + yellow + brown
+    if total_color > 0:
+        green = int((green / total_color) * 100)
+        yellow = int((yellow / total_color) * 100)
+        brown = 100 - green - yellow
+
+    # Decision logic
+    if green_ratio > 0.55 and variance < 500:
         result = "GOOD"
         condition = "Healthy Leaf"
-        confidence = round(70 + abs(score)*30, 2)
+        confidence = round(75 + green_ratio * 25, 2)
+
+    elif brown_ratio > 0.12:
+        result = "BAD"
+        condition = "Disease (Brown Spots)"
+        confidence = round(65 + brown_ratio * 35, 2)
+
+    elif yellow_ratio > 0.18:
+        result = "BAD"
+        condition = "Nutrient Deficiency"
+        confidence = round(60 + yellow_ratio * 30, 2)
+
     else:
         result = "BAD"
-        condition = "Disease / Stress Detected"
-        confidence = round(60 + abs(score)*30, 2)
-
-    # fallback color ratios (for pie chart only)
-    arr = np.array(image)
-    green = int(np.mean(arr[:,:,1]) / 255 * 100)
-    yellow = int(np.mean(arr[:,:,0]) / 255 * 50)
-    brown = max(0, 100 - green - yellow)
+        condition = "Stress / Early Issue"
+        confidence = round(55 + (yellow_ratio + brown_ratio) * 40, 2)
 
     return result, confidence, condition, green, yellow, brown
 
@@ -76,7 +99,7 @@ if st.session_state.page == "Home":
     st.title("🌿 AgroDetect AI")
     st.subheader("Upload Leaf Image")
 
-    uploaded_file = st.file_uploader("Upload", type=["jpg","png","jpeg"])
+    uploaded_file = st.file_uploader("Upload", type=["jpg", "png", "jpeg"])
 
     if uploaded_file:
         image = Image.open(uploaded_file)
@@ -84,10 +107,11 @@ if st.session_state.page == "Home":
 
         file_bytes = uploaded_file.getvalue()
 
+        # RUN ONLY ON NEW IMAGE
         if "last_image" not in st.session_state or st.session_state.last_image != file_bytes:
             st.session_state.last_image = file_bytes
 
-            with st.spinner("Analyzing with AI model..."):
+            with st.spinner("Analyzing..."):
                 time.sleep(1)
 
             result, confidence, condition, g, y, b = analyze_leaf(image)
@@ -103,12 +127,12 @@ if st.session_state.page == "Home":
 
         data = st.session_state.result_data
 
-        # RESULT (VERTICAL)
+        # ---------- RESULT (VERTICAL) ----------
         st.success(f"RESULT: {data['result']}")
         st.info(f"CONFIDENCE: {data['confidence']}%")
         st.warning(f"CONDITION: {data['condition']}")
 
-        # PIE
+        # ---------- PIE ----------
         st.subheader("Leaf Analysis")
 
         fig, ax = plt.subplots()
@@ -118,6 +142,7 @@ if st.session_state.page == "Home":
             autopct='%1.1f%%',
             colors=["green","yellow","brown"]
         )
+        ax.axis('equal')
         st.pyplot(fig)
 
         leaf_name = st.text_input("Enter Leaf Name")
@@ -135,7 +160,7 @@ if st.session_state.page == "Home":
                 "image": uploaded_file.getvalue()
             })
 
-            st.success("Saved!")
+            st.success("Saved successfully!")
 
 # ---------- HISTORY ----------
 elif st.session_state.page == "History":
@@ -146,10 +171,36 @@ elif st.session_state.page == "History":
         st.info("No data yet")
 
     for item in st.session_state.history:
-        st.write(f"### {item['name']}")
-        st.write(f"Result: {item['result']}")
-        st.write(f"Confidence: {item['confidence']}%")
-        st.write(f"Condition: {item['condition']}")
+
+        col1, col2 = st.columns([1,3])
+
+        with col1:
+            st.image(item["image"], width=100)
+
+        with col2:
+            st.write(f"**Name:** {item['name']}")
+            st.write(f"Result: {item['result']}")
+            st.write(f"Confidence: {item['confidence']}%")
+            st.write(f"Condition: {item['condition']}")
+
+            buffer = io.BytesIO()
+            doc = SimpleDocTemplate(buffer)
+            styles = getSampleStyleSheet()
+
+            content = []
+            content.append(Paragraph(f"Leaf Name: {item['name']}", styles["Normal"]))
+            content.append(Spacer(1, 10))
+            content.append(Paragraph(f"Result: {item['result']}", styles["Normal"]))
+            content.append(Paragraph(f"Confidence: {item['confidence']}%", styles["Normal"]))
+            content.append(Paragraph(f"Condition: {item['condition']}", styles["Normal"]))
+
+            doc.build(content)
+
+            st.download_button(
+                "Download Report",
+                buffer.getvalue(),
+                file_name=f"{item['name']}.pdf"
+            )
 
 # ---------- ANALYTICS ----------
 elif st.session_state.page == "Analytics":
@@ -164,6 +215,10 @@ elif st.session_state.page == "Analytics":
         ax.pie([good,bad], labels=["Good","Bad"], autopct='%1.1f%%')
         st.pyplot(fig)
 
+        st.write(f"Total Images: {len(st.session_state.history)}")
+        st.write(f"Good: {good}")
+        st.write(f"Bad: {bad}")
+
 # ---------- ABOUT ----------
 elif st.session_state.page == "About":
 
@@ -171,14 +226,21 @@ elif st.session_state.page == "About":
 
     st.markdown("""
 ### 🌿 AgroDetect AI
-AI-powered leaf health detection system.
+
+AgroDetect AI is a smart plant leaf analysis system.
 
 ### 🚀 Features
-- Deep learning based detection
-- Image analysis
+- Detects plant health condition
+- Confidence-based prediction
+- Visual analysis with pie charts
 - History tracking
-- Analytics dashboard
+- Downloadable reports
 
 ### 🎯 Purpose
-Helps farmers identify plant health issues quickly.
+Helps farmers and students identify plant health issues quickly.
+
+### 🔮 Future Scope
+- Deep learning integration
+- Disease-specific classification
+- Mobile optimization
 """)
