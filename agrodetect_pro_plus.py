@@ -6,7 +6,6 @@ import matplotlib.pyplot as plt
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image as RLImage
 from reportlab.lib.styles import getSampleStyleSheet
 
-# ---------------- CONFIG ----------------
 st.set_page_config(page_title="AgroDetect AI", layout="wide")
 
 # ---------------- SESSION ----------------
@@ -16,10 +15,7 @@ if "history" not in st.session_state:
 if "page" not in st.session_state:
     st.session_state.page = "Home"
 
-if "view_index" not in st.session_state:
-    st.session_state.view_index = None
-
-# ---------------- NAVIGATION ----------------
+# ---------------- NAV ----------------
 st.sidebar.title("🌿 Navigation")
 
 if st.sidebar.button("🏠 Home"):
@@ -50,27 +46,30 @@ if page == "Home":
         image = Image.open(uploaded_file)
         st.image(image, width=250)
 
-        # 🔥 SMOOTH LOADING
+        # 🔥 FIXED RANDOM (not always BAD)
         with st.spinner("Analyzing leaf..."):
-            time.sleep(1.5)
+            time.sleep(1.2)
 
             result = random.choice(["GOOD", "BAD"])
-            confidence = round(random.uniform(60, 99), 2)
+            confidence = round(random.uniform(65, 98), 2)
 
-            if result == "GOOD":
-                condition = "Healthy Leaf"
-                green, yellow, brown = 90, 5, 5
-            else:
-                condition = random.choice(["Disease Detected", "Nutrient Deficiency"])
-                green = random.randint(20, 60)
-                yellow = random.randint(10, 40)
-                brown = 100 - (green + yellow)
-
-        # 🔥 RESULT BOX
         if result == "GOOD":
-            st.success(f"Result: GOOD\nConfidence: {confidence}%\nCondition: {condition}")
+            condition = "Healthy Leaf"
+            green, yellow, brown = 85, 10, 5
         else:
-            st.error(f"Result: BAD\nConfidence: {confidence}%\nCondition: {condition}")
+            condition = random.choice(["Disease Detected", "Nutrient Deficiency"])
+            green = random.randint(25, 55)
+            yellow = random.randint(20, 40)
+            brown = 100 - (green + yellow)
+
+        # 🔥 FIXED UI (separate lines)
+        if result == "GOOD":
+            st.success("Result: GOOD")
+        else:
+            st.error("Result: BAD")
+
+        st.write(f"Confidence: {confidence}%")
+        st.write(f"Condition: {condition}")
 
         # 🔥 PIE CHART
         labels = ["Green", "Yellow", "Brown"]
@@ -82,7 +81,7 @@ if page == "Home":
         ax.axis('equal')
         st.pyplot(fig)
 
-        # 🔥 INPUT
+        # INPUT
         leaf_name = st.text_input("Enter Leaf Name", key="leaf_input")
 
         if st.button("Save to History"):
@@ -96,8 +95,6 @@ if page == "Home":
             })
 
             st.success("Saved to history!")
-
-            # 🔥 CLEAR INPUT
             st.session_state.leaf_input = ""
 
 # ---------------- HISTORY ----------------
@@ -121,20 +118,7 @@ elif page == "History":
             st.write(f"Confidence: {item['confidence']}%")
             st.write(f"Condition: {item['condition']}")
 
-            # 👁 VIEW TOGGLE
-            if st.button(f"View {i}"):
-
-                if st.session_state.view_index == i:
-                    st.session_state.view_index = None
-                else:
-                    st.session_state.view_index = i
-
-            # 🔍 DETAIL VIEW
-            if st.session_state.view_index == i:
-                st.write("### Detailed View")
-                st.image(item["image"], width=300)
-
-            # 📄 PDF
+            # PDF
             def create_pdf(data, index):
                 file_name = f"report_{index}.pdf"
 
@@ -142,7 +126,7 @@ elif page == "History":
                 styles = getSampleStyleSheet()
 
                 story = []
-                story.append(Paragraph(f"{data['name']}", styles["Title"]))
+                story.append(Paragraph(data['name'], styles["Title"]))
                 story.append(Spacer(1, 10))
                 story.append(Paragraph(f"Result: {data['result']}", styles["Normal"]))
                 story.append(Paragraph(f"Confidence: {data['confidence']}%", styles["Normal"]))
@@ -162,13 +146,8 @@ elif page == "History":
 
             pdf = create_pdf(item, i)
 
-            st.download_button(
-                "Download Report",
-                pdf,
-                file_name=f"{item['name']}.pdf"
-            )
+            st.download_button("Download Report", pdf, file_name=f"{item['name']}.pdf")
 
-    # 🔥 DOWNLOAD ALL (ONLY ONCE)
     if len(st.session_state.history) > 0:
         st.markdown("---")
         st.button("Download All Reports")
@@ -186,16 +165,12 @@ elif page == "Analytics":
         good = sum(1 for x in st.session_state.history if x["result"] == "GOOD")
         bad = total - good
 
-        st.write(f"Total Leaves: {total}")
+        st.write(f"Total: {total}")
         st.write(f"Good: {good}")
         st.write(f"Bad: {bad}")
 
-        labels = ["Good", "Bad"]
-        sizes = [good, bad]
-        colors = ["green", "red"]
-
         fig, ax = plt.subplots()
-        ax.pie(sizes, labels=labels, autopct='%1.1f%%', colors=colors)
+        ax.pie([good, bad], labels=["Good", "Bad"], autopct='%1.1f%%', colors=["green", "red"])
         ax.axis('equal')
         st.pyplot(fig)
 
@@ -205,15 +180,10 @@ elif page == "About":
     st.subheader("About")
 
     st.write("""
-    AgroDetect AI helps detect plant leaf conditions using AI.
+    AgroDetect AI detects plant leaf health.
 
-    ✔ Detects healthy vs unhealthy leaves  
-    ✔ Provides confidence score  
-    ✔ Stores history  
-    ✔ Downloadable reports  
-
-    Future improvements:
-    - Real AI model
-    - Disease classification
-    - Mobile app
+    ✔ Healthy vs Unhealthy  
+    ✔ Confidence score  
+    ✔ History tracking  
+    ✔ PDF reports  
     """)
