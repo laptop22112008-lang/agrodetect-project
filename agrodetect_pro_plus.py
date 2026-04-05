@@ -528,8 +528,7 @@ if st.session_state.page == "Home":
             key=f"leaf_name_{st.session_state.input_key}",
         )
 
-        if st.button("💾 Save to History"):
-    ...
+        if st.button("💾 Save to History"):...
             save_name = leaf_name.strip() if leaf_name.strip() else f"Leaf Scan {len(st.session_state.history)+1}"
 
             if file_hash in st.session_state.saved_hashes:
