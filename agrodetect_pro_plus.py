@@ -31,7 +31,7 @@ if st.sidebar.button("📊 Analytics"):
 if st.sidebar.button("ℹ About"):
     st.session_state.page = "About"
 
-# ---------- IMPROVED MODEL ----------
+# ---------- MODEL ----------
 def analyze_leaf(image):
 
     img = np.array(image)
@@ -73,7 +73,7 @@ def analyze_leaf(image):
         yellow = int((yellow / total_color) * 100)
         brown = 100 - green - yellow
 
-    # -------- BALANCED DECISION (FINAL FIX) --------
+    # -------- BALANCED DECISION --------
     if green_ratio > 0.55 and brown_ratio < 0.07 and yellow_ratio < 0.20:
         result = "GOOD"
         condition = "Healthy Leaf"
@@ -98,6 +98,9 @@ def analyze_leaf(image):
         result = "BAD"
         condition = "Stress / Early Issue"
         confidence = round(55 + (yellow_ratio + brown_ratio) * 30, 2)
+
+    return result, confidence, condition, green, yellow, brown
+
 # ---------- HOME ----------
 if st.session_state.page == "Home":
 
@@ -136,11 +139,10 @@ if st.session_state.page == "Home":
         st.info(f"CONFIDENCE: {data['confidence']}%")
         st.warning(f"CONDITION: {data['condition']}")
 
-        # PIE SAFE
+        # PIE
         st.subheader("Leaf Analysis")
 
         values = [data["green"], data["yellow"], data["brown"]]
-
         if sum(values) == 0:
             values = [34, 33, 33]
 
@@ -210,7 +212,6 @@ elif st.session_state.page == "History":
                     key=f"download_{i}"
                 )
 
-        # -------- DOWNLOAD ALL --------
         st.markdown("---")
         if st.button("Download All Reports"):
             st.success("Download individual reports above")
