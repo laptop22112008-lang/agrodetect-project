@@ -1,8 +1,8 @@
 import streamlit as st
 from PIL import Image
+import numpy as np
 import random
-import time
-import matplotlib.pyplot as plt
+import io
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image as RLImage
 from reportlab.lib.styles import getSampleStyleSheet
 
@@ -12,29 +12,169 @@ st.set_page_config(page_title="AgroDetect AI", layout="wide")
 if "history" not in st.session_state:
     st.session_state.history = []
 
-if "page" not in st.session_state:
-    st.session_state.page = "Home"
+if "prediction_done" not in st.session_state:
+    st.session_state.prediction_done = False
 
-# ---------------- NAV ----------------
+if "prediction_data" not in st.session_state:
+    st.session_state.prediction_data = {}
+
+# ---------------- SIDEBAR ----------------
 st.sidebar.title("🌿 Navigation")
+page = st.sidebar.radio("", ["Home", "History", "Analytics", "About"])
 
-if st.sidebar.button("🏠 Home"):
-    st.session_state.page = "Home"
+# ---------------- FAKE MODEL ----------------
+def predict(image):
+    green = random.randint(40, 80)
+    yellow = random.randint(10, 40)
+    brown = 100 - green - yellow
 
-if st.sidebar.button("📁 History"):
-    st.session_state.page = "History"
+    if green > 60:
+        result = "GOOD"
+        condition = "Healthy Leaf"
+        confidence = random.uniform(90, 99)
+    else:
+        result = "BAD"
+        condition = "Nutrient Deficiency"
+        confidence = random.uniform(60, 85)
 
-if st.sidebar.button("📊 Analytics"):
-    st.session_state.page = "Analytics"
+    return result, confidence, condition, green, yellow, brown
 
-if st.sidebar.button("ℹ️ About"):
-    st.session_state.page = "About"
+# ---------------- PDF ----------------
+def generate_pdf(data):
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(buffer)
+    styles = getSampleStyleSheet()
 
-page = st.session_state.page
+    elements = []
 
-# ---------------- TITLE ----------------
-st.title("🌿 AgroDetect AI")
+    elements.append(Paragraph(f"Leaf Name: {data['name']}", styles["Title"]))
+    elements.append(Spacer(1, 10))
+    elements.append(Paragraph(f"Result: {data['result']}", styles["Normal"]))
+    elements.append(Paragraph(f"Confidence: {data['confidence']:.2f}%", styles["Normal"]))
+    elements.append(Paragraph(f"Condition: {data['condition']}", styles["Normal"]))
 
+    doc.build(elements)
+    buffer.seek(0)
+    return buffer
+
+# ---------------- HOME ----------------
+if page == "Home":
+    st.title("🌿 AgroDetect AI")
+
+    uploaded = st.file_uploader("Upload Leaf Image", type=["jpg", "png", "jpeg"])
+
+    if uploaded:
+        image = Image.open(uploaded)
+        st.image(image, width=250)
+
+        # 🔥 RUN MODEL ONLY ONCE
+        if not st.session_state.prediction_done:
+            result, confidence, condition, g, y, b = predict(image)
+
+            st.session_state.prediction_data = {
+                "result": result,
+                "confidence": confidence,
+                "condition": condition,
+                "green": g,
+                "yellow": y,
+                "brown": b
+            }
+
+            st.session_state.prediction_done = True
+
+        data = st.session_state.prediction_data
+
+        # ---------------- RESULT UI ----------------
+        col1, col2, col3 = st.columns(3)
+
+        col1.metric("Result", data["result"])
+        col2.metric("Confidence", f"{data['confidence']:.2f}%")
+        col3.metric("Condition", data["condition"])
+
+        # ---------------- PIE ----------------
+        st.subheader("Leaf Analysis")
+        st.write({
+            "Green": data["green"],
+            "Yellow": data["yellow"],
+            "Brown": data["brown"]
+        })
+
+        # ---------------- INPUT ----------------
+        leaf_name = st.text_input("Enter Leaf Name", key="leaf_input")
+
+        # ---------------- SAVE ----------------
+        if st.button("Save to History"):
+            if leaf_name != "":
+                st.session_state.history.append({
+                    "name": leaf_name,
+                    "result": data["result"],
+                    "confidence": data["confidence"],
+                    "condition": data["condition"],
+                    "green": data["green"],
+                    "yellow": data["yellow"],
+                    "brown": data["brown"]
+                })
+
+                # RESET SAFE WAY
+                st.session_state.prediction_done = False
+                st.session_state.prediction_data = {}
+
+                st.success("Saved Successfully!")
+
+# ---------------- HISTORY ----------------
+elif page == "History":
+    st.title("📜 History")
+
+    if not st.session_state.history:
+        st.info("No data yet")
+
+    for item in st.session_state.history:
+        st.write(f"### {item['name']}")
+        st.write(f"Result: {item['result']}")
+        st.write(f"Confidence: {item['confidence']:.2f}%")
+        st.write(f"Condition: {item['condition']}")
+
+        pdf = generate_pdf(item)
+
+        st.download_button(
+            "Download Report",
+            pdf,
+            file_name=f"{item['name']}.pdf"
+        )
+
+    # DOWNLOAD ALL
+    if st.session_state.history:
+        if st.button("Download All Reports"):
+            st.success("Download individually (Streamlit limitation 😅)")
+
+# ---------------- ANALYTICS ----------------
+elif page == "Analytics":
+    st.title("📊 Analytics")
+
+    total = len(st.session_state.history)
+    good = sum(1 for i in st.session_state.history if i["result"] == "GOOD")
+    bad = total - good
+
+    st.metric("Total", total)
+    st.metric("Healthy", good)
+    st.metric("Diseased", bad)
+
+# ---------------- ABOUT ----------------
+elif page == "About":
+    st.title("ℹ About")
+
+    st.write("""
+    AgroDetect AI is a smart plant health detection system.
+
+    Features:
+    - Leaf disease detection
+    - Confidence scoring
+    - History tracking
+    - PDF reports
+    - Analytics dashboard
+
+    Built using Streamlit & AI concepts 🌿
+    """)
 # ---------------- HOME ----------------
 if page == "Home":
 
