@@ -521,13 +521,14 @@ if st.session_state.page == "Home":
 
         st.write("---")
 
-leaf_name = st.text_input(
-    "Leaf scan name",
-    placeholder="e.g. Field-A Sample 1",
-    key=f"leaf_name_{st.session_state.input_key}",
-)
+        st.markdown('<div class="main-card">', unsafe_allow_html=True)
+        leaf_name = st.text_input(
+            "Leaf scan name",
+            placeholder="e.g. Field-A Sample 1",
+            key=f"leaf_name_{st.session_state.input_key}",
+        )
 
-if st.button("💾 Save to History"):
+        if st.button("💾 Save to History"):
     ...
             save_name = leaf_name.strip() if leaf_name.strip() else f"Leaf Scan {len(st.session_state.history)+1}"
 
