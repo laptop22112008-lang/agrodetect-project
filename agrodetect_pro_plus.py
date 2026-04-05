@@ -6,7 +6,6 @@ import matplotlib.pyplot as plt
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image as RLImage
 from reportlab.lib.styles import getSampleStyleSheet
 import io
-import os
 
 st.set_page_config(page_title="AgroDetect AI", layout="wide")
 
@@ -23,13 +22,13 @@ st.sidebar.title("🌿 Navigation")
 if st.sidebar.button("🏠 Home"):
     st.session_state.page = "Home"
 
-if st.sidebar.button("📜 History"):
+if st.sidebar.button("📁 History"):
     st.session_state.page = "History"
 
 if st.sidebar.button("📊 Analytics"):
     st.session_state.page = "Analytics"
 
-if st.sidebar.button("ℹ About"):
+if st.sidebar.button("ℹ️ About"):
     st.session_state.page = "About"
 
 # ---------- MODEL ----------
@@ -73,7 +72,6 @@ def analyze_leaf(image):
         yellow = int((yellow / total_color) * 100)
         brown = 100 - green - yellow
 
-    # BALANCED DECISION
     if green_ratio > 0.55 and brown_ratio < 0.07 and yellow_ratio < 0.20:
         result = "GOOD"
         condition = "Healthy Leaf"
@@ -138,7 +136,7 @@ if st.session_state.page == "Home":
         st.info(f"CONFIDENCE: {data['confidence']}%")
         st.warning(f"CONDITION: {data['condition']}")
 
-        st.subheader("Leaf Analysis")
+        st.subheader("📊 Leaf Analysis")
 
         values = [data["green"], data["yellow"], data["brown"]]
         if sum(values) == 0:
@@ -171,12 +169,13 @@ if st.session_state.page == "Home":
 # ---------- HISTORY ----------
 elif st.session_state.page == "History":
 
-    st.title("📜 History")
+    st.title("📁 History")
 
     if not st.session_state.history:
         st.info("No data yet")
 
     else:
+        merged = io.BytesIO()
 
         for i, item in enumerate(st.session_state.history):
 
@@ -191,12 +190,12 @@ elif st.session_state.page == "History":
                 st.write(f"Confidence: {item['confidence']}%")
                 st.write(f"Condition: {item['condition']}")
 
-                # Save image
+                # image file
                 img_path = f"leaf_{i}.png"
                 with open(img_path, "wb") as f:
                     f.write(item["image"])
 
-                # Create pie chart image
+                # pie
                 fig, ax = plt.subplots()
                 ax.pie(
                     [item["green"], item["yellow"], item["brown"]],
@@ -209,7 +208,6 @@ elif st.session_state.page == "History":
                 fig.savefig(pie_path)
                 plt.close(fig)
 
-                # Create PDF
                 buffer = io.BytesIO()
                 doc = SimpleDocTemplate(buffer)
                 styles = getSampleStyleSheet()
@@ -227,18 +225,20 @@ elif st.session_state.page == "History":
 
                 doc.build(content)
 
+                pdf_data = buffer.getvalue()
+
                 st.download_button(
                     "Download Report",
-                    buffer.getvalue(),
+                    pdf_data,
                     file_name=f"{item['name']}.pdf",
                     key=f"download_{i}"
                 )
 
         st.markdown("---")
 
+        # -------- SINGLE BUTTON --------
         if st.button("Download All Reports"):
 
-            merged = io.BytesIO()
             doc = SimpleDocTemplate(merged)
             styles = getSampleStyleSheet()
 
@@ -263,7 +263,7 @@ elif st.session_state.page == "History":
             doc.build(final_content)
 
             st.download_button(
-                "Download Combined PDF",
+                "Download All Reports",
                 merged.getvalue(),
                 file_name="All_Leaf_Reports.pdf"
             )
@@ -288,7 +288,7 @@ elif st.session_state.page == "Analytics":
 # ---------- ABOUT ----------
 elif st.session_state.page == "About":
 
-    st.title("ℹ About AgroDetect AI")
+    st.title("ℹ️ About AgroDetect AI")
 
     st.markdown("""
 ### 🌿 AgroDetect AI
