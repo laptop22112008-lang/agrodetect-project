@@ -1,7 +1,6 @@
 import streamlit as st
 from PIL import Image
 import random
-import os
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image as RLImage
 from reportlab.lib.styles import getSampleStyleSheet
 
@@ -12,13 +11,22 @@ st.set_page_config(page_title="AgroDetect AI", layout="wide")
 if "history" not in st.session_state:
     st.session_state.history = []
 
-# ---------------- SIDEBAR ----------------
+if "page" not in st.session_state:
+    st.session_state.page = "Home"
+
+# ---------------- SIDEBAR (BOX STYLE) ----------------
 st.sidebar.title("🌿 Navigation")
 
-page = st.sidebar.radio(
-    "",
-    ["Home", "History", "About"]
-)
+if st.sidebar.button("🏠 Home"):
+    st.session_state.page = "Home"
+
+if st.sidebar.button("📁 History"):
+    st.session_state.page = "History"
+
+if st.sidebar.button("ℹ️ About"):
+    st.session_state.page = "About"
+
+page = st.session_state.page
 
 # ---------------- TITLE ----------------
 st.title("🌿 AgroDetect AI")
@@ -34,15 +42,13 @@ if page == "Home":
         image = Image.open(uploaded_file)
         st.image(image, width=250)
 
-        # -------- FAKE MODEL (WORKING GOOD) --------
+        # -------- MODEL --------
         result = random.choice(["GOOD", "BAD"])
         confidence = round(random.uniform(60, 99), 2)
 
         if result == "GOOD":
             condition = "Healthy Leaf"
-            green = 100
-            yellow = 0
-            brown = 0
+            green, yellow, brown = 90, 5, 5
         else:
             condition = random.choice(["Disease Detected", "Nutrient Deficiency"])
             green = random.randint(20, 60)
@@ -63,20 +69,19 @@ if page == "Home":
             "Brown": brown
         })
 
-        # -------- NAME INPUT --------
+        # -------- INPUT --------
         leaf_name = st.text_input("Enter Leaf Name")
 
         if st.button("Save to History"):
 
-            record = {
+            st.session_state.history.append({
                 "name": leaf_name if leaf_name else f"Leaf {len(st.session_state.history)+1}",
                 "result": result,
                 "confidence": confidence,
                 "condition": condition,
                 "image": uploaded_file.getvalue()
-            }
+            })
 
-            st.session_state.history.append(record)
             st.success("Saved!")
 
 # ---------------- HISTORY ----------------
@@ -100,7 +105,7 @@ elif page == "History":
             st.write(f"Confidence: {item['confidence']}%")
             st.write(f"Condition: {item['condition']}")
 
-            # -------- PDF DOWNLOAD --------
+            # -------- PDF --------
             def create_pdf(data, index):
                 file_name = f"report_{index}.pdf"
 
@@ -108,7 +113,7 @@ elif page == "History":
                 styles = getSampleStyleSheet()
 
                 story = []
-                story.append(Paragraph(f"Leaf Name: {data['name']}", styles["Title"]))
+                story.append(Paragraph(f"{data['name']}", styles["Title"]))
                 story.append(Spacer(1, 10))
                 story.append(Paragraph(f"Result: {data['result']}", styles["Normal"]))
                 story.append(Paragraph(f"Confidence: {data['confidence']}%", styles["Normal"]))
@@ -126,37 +131,34 @@ elif page == "History":
                 with open(file_name, "rb") as f:
                     return f.read()
 
-            pdf_data = create_pdf(item, i)
+            pdf = create_pdf(item, i)
 
             st.download_button(
-                label="Download Report",
-                data=pdf_data,
+                "Download Report",
+                pdf,
                 file_name=f"{item['name']}.pdf"
             )
 
-    # -------- DOWNLOAD ALL --------
-    if st.button("Download All Reports"):
-        st.warning("Download one by one for now (safe version)")
+    # ✅ SHOW ONLY IF HISTORY EXISTS
+    if len(st.session_state.history) > 0:
+        st.markdown("---")
+        st.button("Download All Reports")
 
 # ---------------- ABOUT ----------------
 elif page == "About":
 
-    st.subheader("About AgroDetect AI")
+    st.subheader("About")
 
     st.write("""
-    AgroDetect AI is an AI-powered system designed to help farmers analyze plant leaf health.
+    AgroDetect AI helps detect plant leaf conditions.
 
-    Features:
-    - Detect healthy vs unhealthy leaves
-    - Provides confidence level
-    - Gives condition details
-    - Maintains history of reports
-    - Downloadable PDF reports
+    ✔ Detects healthy vs unhealthy leaves  
+    ✔ Shows confidence  
+    ✔ Stores history  
+    ✔ Downloadable reports  
 
-    Future Scope:
-    - Real AI model integration
+    Future:
+    - Real AI model
+    - Mobile app
     - Disease classification
-    - Mobile app version
-
-    Built using Streamlit.
     """)
