@@ -3,126 +3,305 @@ from PIL import Image
 import numpy as np
 import time
 import matplotlib.pyplot as plt
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image as RLImage
+from reportlab.lib.styles import getSampleStyleSheet
 import io
 
-# ---------- PAGE CONFIG ----------
 st.set_page_config(page_title="AgroDetect AI", layout="wide")
 
-# ---------- STABLE CSS ----------
-st.markdown("""
-    <style>
-    /* Reset & Background */
-    [data-testid="stAppViewContainer"] {
-        background-color: #F0F2F6;
-    }
-    
-    /* Sidebar styling */
-    [data-testid="stSidebar"] {
-        background-color: #0E1117;
-    }
-
-    /* Modern Card Container */
-    .dashboard-card {
-        background: white;
-        padding: 1.5rem;
-        border-radius: 12px;
-        box-shadow: 0 2px 10px rgba(0,0,0,0.05);
-        margin-bottom: 1rem;
-        border-left: 5px solid #4ADE80;
-    }
-
-    /* Result Box Logic */
-    .result-box {
-        text-align: center;
-        padding: 10px;
-        border-radius: 10px;
-        background: #F8FAFC;
-    }
-    
-    .status-text {
-        font-size: 24px;
-        font-weight: 800;
-        margin: 0;
-    }
-    
-    /* Remove default Streamlit padding for a tighter look */
-    .block-container {
-        padding-top: 2rem;
-        padding-bottom: 2rem;
-    }
-    </style>
-    """, unsafe_allow_html=True)
-
-# ---------- SESSION STATE ----------
+# ---------- SESSION ----------
 if "history" not in st.session_state:
     st.session_state.history = []
+
 if "page" not in st.session_state:
-    st.session_state.page = "Dashboard"
+    st.session_state.page = "Home"
 
-# ---------- SIDEBAR ----------
-with st.sidebar:
-    st.markdown("<h2 style='color:#4ADE80'>🌿 agri-cultur</h2>", unsafe_allow_html=True)
-    st.write("---")
-    if st.button("📊 Dashboard", use_container_width=True): st.session_state.page = "Dashboard"
-    if st.button("📁 History", use_container_width=True): st.session_state.page = "History"
-    st.write("---")
-    st.caption("v2.1 Stable Build")
+# ---------- NAVIGATION ----------
+st.sidebar.title("🌿 Navigation")
 
-# ---------- ANALYSIS LOGIC ----------
+if st.sidebar.button("🏠 Home"):
+    st.session_state.page = "Home"
+
+if st.sidebar.button("📁 History"):
+    st.session_state.page = "History"
+
+if st.sidebar.button("📊 Analytics"):
+    st.session_state.page = "Analytics"
+
+if st.sidebar.button("ℹ️ About"):
+    st.session_state.page = "About"
+
+# ---------- MODEL ----------
 def analyze_leaf(image):
+
     img = np.array(image)
-    r, g, b = img[:,:,0].astype(float), img[:,:,1].astype(float), img[:,:,2].astype(float)
+
+    r = img[:,:,0].astype(float)
+    g = img[:,:,1].astype(float)
+    b = img[:,:,2].astype(float)
+
     total = r + g + b + 1e-6
-    g_ratio = np.sum((g/total > 0.36))/ (img.shape[0]*img.shape[1])
-    # Simplified for UI testing
-    res = "GOOD" if g_ratio > 0.4 else "BAD"
-    return res, round(g_ratio*100, 1), "Healthy" if res=="GOOD" else "Check Stress", 70, 20, 10
 
-# ---------- DASHBOARD ----------
-if st.session_state.page == "Dashboard":
-    st.title("Field Intelligence")
-    
-    # Grid Layout
-    top_col1, top_col2 = st.columns([1, 1.5])
-    
-    with top_col1:
-        st.markdown('<div class="dashboard-card">', unsafe_allow_html=True)
-        st.subheader("📸 Leaf Scan")
-        uploaded_file = st.file_uploader("Upload leaf image", type=["jpg", "png", "jpeg"], label_visibility="collapsed")
-        if uploaded_file:
-            st.image(uploaded_file, use_column_width=True)
-        st.markdown('</div>', unsafe_allow_html=True)
+    r_norm = r / total
+    g_norm = g / total
+    b_norm = b / total
 
-    with top_col2:
-        if uploaded_file:
-            image = Image.open(uploaded_file)
-            res, conf, cond, g, y, b = analyze_leaf(image)
-            
-            # Key Stats Row
-            st.markdown('<div class="dashboard-card">', unsafe_allow_html=True)
-            c1, c2, c3 = st.columns(3)
-            with c1:
-                st.markdown(f'<div class="result-box"><caption>STATUS</caption><p class="status-text" style="color:{"#10B981" if res=="GOOD" else "#EF4444"}">{res}</p></div>', unsafe_allow_html=True)
-            with c2:
-                st.markdown(f'<div class="result-box"><caption>CONFIDENCE</caption><p class="status-text">{conf}%</p></div>', unsafe_allow_html=True)
-            with c3:
-                st.markdown(f'<div class="result-box"><caption>CONDITION</caption><p style="font-weight:bold; margin-top:10px;">{cond}</p></div>', unsafe_allow_html=True)
-            st.markdown('</div>', unsafe_allow_html=True)
+    green_mask = (g_norm > 0.36) & (g_norm > r_norm) & (g_norm > b_norm)
+    yellow_mask = (r_norm > 0.34) & (g_norm > 0.34) & (b_norm < 0.32)
+    brown_mask = (r_norm > 0.45) & (g_norm < 0.38) & (b_norm < 0.32)
 
-            # Chart Card
-            st.markdown('<div class="dashboard-card">', unsafe_allow_html=True)
-            st.subheader("Color Analysis")
-            fig, ax = plt.subplots(figsize=(8, 1.5))
-            ax.barh(["Composition"], [g], color="#4ADE80", label="Green")
-            ax.barh(["Composition"], [y], left=[g], color="#FACC15", label="Yellow")
-            ax.barh(["Composition"], [b], left=[g+y], color="#78350F", label="Brown")
-            ax.set_xlim(0, 100)
-            ax.axis('off')
-            st.pyplot(fig)
-            
-            name = st.text_input("Log Batch ID", placeholder="e.g. Corn-01")
-            if st.button("Save Record", use_container_width=True):
-                st.toast("Saved!")
-            st.markdown('</div>', unsafe_allow_html=True)
-        else:
-            st.info("Please upload an image to view analysis results.")
+    total_pixels = img.shape[0] * img.shape[1]
+
+    green_ratio = np.sum(green_mask) / total_pixels
+    yellow_ratio = np.sum(yellow_mask) / total_pixels
+    brown_ratio = np.sum(brown_mask) / total_pixels
+
+    green = int(green_ratio * 100)
+    yellow = int(yellow_ratio * 100)
+    brown = int(brown_ratio * 100)
+
+    total_color = green + yellow + brown
+
+    if total_color == 0:
+        green, yellow, brown = 34, 33, 33
+    else:
+        green = int((green / total_color) * 100)
+        yellow = int((yellow / total_color) * 100)
+        brown = 100 - green - yellow
+
+    # BALANCED DECISION
+    if green_ratio > 0.55 and brown_ratio < 0.07 and yellow_ratio < 0.20:
+        result = "GOOD"
+        condition = "Healthy Leaf"
+        confidence = round(75 + green_ratio * 20, 2)
+
+    elif brown_ratio > 0.12:
+        result = "BAD"
+        condition = "Disease (Brown Damage)"
+        confidence = round(65 + brown_ratio * 30, 2)
+
+    elif yellow_ratio > 0.25:
+        result = "BAD"
+        condition = "Nutrient Deficiency"
+        confidence = round(60 + yellow_ratio * 25, 2)
+
+    elif green_ratio > 0.45:
+        result = "GOOD"
+        condition = "Mostly Healthy (Minor Yellowing)"
+        confidence = round(65 + green_ratio * 20, 2)
+
+    else:
+        result = "BAD"
+        condition = "Stress / Early Issue"
+        confidence = round(55 + (yellow_ratio + brown_ratio) * 30, 2)
+
+    return result, confidence, condition, green, yellow, brown
+
+# ---------- HOME ----------
+if st.session_state.page == "Home":
+
+    st.title("🌿 AgroDetect AI")
+    st.subheader("Upload Leaf Image")
+
+    uploaded_file = st.file_uploader("Upload", type=["jpg", "png", "jpeg"])
+
+    if uploaded_file:
+        image = Image.open(uploaded_file)
+        st.image(image, width=300)
+
+        file_bytes = uploaded_file.getvalue()
+
+        if "last_image" not in st.session_state or st.session_state.last_image != file_bytes:
+            st.session_state.last_image = file_bytes
+
+            with st.spinner("Analyzing..."):
+                time.sleep(1)
+
+            result, confidence, condition, g, y, b = analyze_leaf(image)
+
+            st.session_state.result_data = {
+                "result": result,
+                "confidence": confidence,
+                "condition": condition,
+                "green": g,
+                "yellow": y,
+                "brown": b
+            }
+
+        data = st.session_state.result_data
+
+        st.success(f"RESULT: {data['result']}")
+        st.info(f"CONFIDENCE: {data['confidence']}%")
+        st.warning(f"CONDITION: {data['condition']}")
+
+        st.subheader("📊 Leaf Analysis")
+
+        values = [data["green"], data["yellow"], data["brown"]]
+        if sum(values) == 0:
+            values = [34, 33, 33]
+
+        fig, ax = plt.subplots()
+        ax.pie(values, labels=["Green","Yellow","Brown"],
+               autopct='%1.1f%%',
+               colors=["green","yellow","brown"])
+        ax.axis('equal')
+        st.pyplot(fig)
+
+        leaf_name = st.text_input("Enter Leaf Name")
+
+        if st.button("Save to History"):
+
+            st.session_state.history.append({
+                "name": leaf_name,
+                "result": data["result"],
+                "confidence": data["confidence"],
+                "condition": data["condition"],
+                "green": data["green"],
+                "yellow": data["yellow"],
+                "brown": data["brown"],
+                "image": uploaded_file.getvalue()
+            })
+
+            st.success("Saved successfully!")
+
+# ---------- HISTORY ----------
+elif st.session_state.page == "History":
+
+    st.title("📁 History")
+
+    if not st.session_state.history:
+        st.info("No data yet")
+
+    else:
+
+        for i, item in enumerate(st.session_state.history):
+
+            col1, col2 = st.columns([1,3])
+
+            with col1:
+                st.image(item["image"], width=100)
+
+            with col2:
+                st.write(f"**Name:** {item['name']}")
+                st.write(f"Result: {item['result']}")
+                st.write(f"Confidence: {item['confidence']}%")
+                st.write(f"Condition: {item['condition']}")
+
+                # Save image
+                img_path = f"leaf_{i}.png"
+                with open(img_path, "wb") as f:
+                    f.write(item["image"])
+
+                # Pie chart
+                fig, ax = plt.subplots()
+                ax.pie(
+                    [item["green"], item["yellow"], item["brown"]],
+                    labels=["Green","Yellow","Brown"],
+                    autopct='%1.1f%%',
+                    colors=["green","yellow","brown"]
+                )
+                ax.axis('equal')
+                pie_path = f"pie_{i}.png"
+                fig.savefig(pie_path)
+                plt.close(fig)
+
+                # PDF
+                buffer = io.BytesIO()
+                doc = SimpleDocTemplate(buffer)
+                styles = getSampleStyleSheet()
+
+                content = []
+                content.append(Paragraph(f"<b>{item['name']}</b>", styles["Title"]))
+                content.append(Spacer(1,10))
+                content.append(Paragraph(f"Result: {item['result']}", styles["Normal"]))
+                content.append(Paragraph(f"Confidence: {item['confidence']}%", styles["Normal"]))
+                content.append(Paragraph(f"Condition: {item['condition']}", styles["Normal"]))
+                content.append(Spacer(1,10))
+                content.append(RLImage(img_path, width=200, height=200))
+                content.append(Spacer(1,10))
+                content.append(RLImage(pie_path, width=200, height=200))
+
+                doc.build(content)
+
+                st.download_button(
+                    "Download Report",
+                    buffer.getvalue(),
+                    file_name=f"{item['name']}.pdf",
+                    key=f"download_{i}"
+                )
+
+        st.markdown("---")
+
+        # ✅ SINGLE BUTTON ONLY
+        merged = io.BytesIO()
+        doc = SimpleDocTemplate(merged)
+        styles = getSampleStyleSheet()
+
+        final_content = []
+
+        for i, item in enumerate(st.session_state.history):
+
+            img_path = f"leaf_{i}.png"
+            pie_path = f"pie_{i}.png"
+
+            final_content.append(Paragraph(f"<b>{item['name']}</b>", styles["Title"]))
+            final_content.append(Spacer(1,10))
+            final_content.append(Paragraph(f"Result: {item['result']}", styles["Normal"]))
+            final_content.append(Paragraph(f"Confidence: {item['confidence']}%", styles["Normal"]))
+            final_content.append(Paragraph(f"Condition: {item['condition']}", styles["Normal"]))
+            final_content.append(Spacer(1,10))
+            final_content.append(RLImage(img_path, width=200, height=200))
+            final_content.append(Spacer(1,10))
+            final_content.append(RLImage(pie_path, width=200, height=200))
+            final_content.append(Spacer(1,20))
+
+        doc.build(final_content)
+
+        st.download_button(
+            "Download All Reports",
+            merged.getvalue(),
+            file_name="All_Leaf_Reports.pdf"
+        )
+
+# ---------- ANALYTICS ----------
+elif st.session_state.page == "Analytics":
+
+    st.title("📊 Analytics")
+
+    if st.session_state.history:
+        good = sum(1 for i in st.session_state.history if i["result"]=="GOOD")
+        bad = len(st.session_state.history) - good
+
+        fig, ax = plt.subplots()
+        ax.pie([good,bad], labels=["Good","Bad"], autopct='%1.1f%%')
+        st.pyplot(fig)
+
+        st.write(f"Total Images: {len(st.session_state.history)}")
+        st.write(f"Good: {good}")
+        st.write(f"Bad: {bad}")
+
+# ---------- ABOUT ----------
+elif st.session_state.page == "About":
+
+    st.title("ℹ️ About AgroDetect AI")
+
+    st.markdown("""
+### 🌿 AgroDetect AI
+
+AgroDetect AI is a smart plant leaf analysis system.
+
+### 🚀 Features
+- Detects plant health condition
+- Confidence-based prediction
+- Visual analysis with pie charts
+- History tracking
+- Downloadable reports
+
+### 🎯 Purpose
+Helps farmers and students identify plant health issues quickly.
+
+### 🔮 Future Scope
+- Deep learning integration
+- Disease-specific classification
+- Mobile optimization
+""")
