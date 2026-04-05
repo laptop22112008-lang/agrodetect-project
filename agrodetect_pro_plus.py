@@ -31,7 +31,7 @@ if st.sidebar.button("📊 Analytics"):
 if st.sidebar.button("ℹ About"):
     st.session_state.page = "About"
 
-# ---------- ADVANCED MODEL ----------
+# ---------- IMPROVED MODEL ----------
 def analyze_leaf(image):
 
     img = np.array(image)
@@ -46,9 +46,9 @@ def analyze_leaf(image):
     g_norm = g / total
     b_norm = b / total
 
-    green_mask = (g_norm > 0.38) & (g_norm > r_norm) & (g_norm > b_norm)
-    yellow_mask = (r_norm > 0.34) & (g_norm > 0.34) & (b_norm < 0.3)
-    brown_mask = (r_norm > 0.45) & (g_norm < 0.35) & (b_norm < 0.3)
+    green_mask = (g_norm > 0.36) & (g_norm > r_norm) & (g_norm > b_norm)
+    yellow_mask = (r_norm > 0.34) & (g_norm > 0.34) & (b_norm < 0.32)
+    brown_mask = (r_norm > 0.45) & (g_norm < 0.38) & (b_norm < 0.32)
 
     total_pixels = img.shape[0] * img.shape[1]
 
@@ -56,7 +56,7 @@ def analyze_leaf(image):
     yellow_ratio = np.sum(yellow_mask) / total_pixels
     brown_ratio = np.sum(brown_mask) / total_pixels
 
-    # Texture analysis
+    # texture
     gray = np.mean(img, axis=2)
     variance = np.var(gray)
 
@@ -65,31 +65,34 @@ def analyze_leaf(image):
     brown = int(brown_ratio * 100)
 
     total_color = green + yellow + brown
-    if total_color > 0:
+
+    if total_color == 0:
+        green, yellow, brown = 34, 33, 33
+    else:
         green = int((green / total_color) * 100)
         yellow = int((yellow / total_color) * 100)
         brown = 100 - green - yellow
 
-    # Decision logic
-    if green_ratio > 0.55 and variance < 500:
+    # -------- RELAXED DECISION --------
+    if green_ratio > 0.48 and brown_ratio < 0.08:
         result = "GOOD"
         condition = "Healthy Leaf"
-        confidence = round(75 + green_ratio * 25, 2)
+        confidence = round(70 + green_ratio * 30, 2)
 
-    elif brown_ratio > 0.12:
+    elif brown_ratio > 0.18:
         result = "BAD"
-        condition = "Disease (Brown Spots)"
+        condition = "Disease (Brown Damage)"
         confidence = round(65 + brown_ratio * 35, 2)
 
-    elif yellow_ratio > 0.18:
+    elif yellow_ratio > 0.28:
         result = "BAD"
         condition = "Nutrient Deficiency"
         confidence = round(60 + yellow_ratio * 30, 2)
 
     else:
-        result = "BAD"
-        condition = "Stress / Early Issue"
-        confidence = round(55 + (yellow_ratio + brown_ratio) * 40, 2)
+        result = "GOOD"
+        condition = "Mostly Healthy (Minor Variation)"
+        confidence = round(65 + green_ratio * 25, 2)
 
     return result, confidence, condition, green, yellow, brown
 
@@ -107,7 +110,6 @@ if st.session_state.page == "Home":
 
         file_bytes = uploaded_file.getvalue()
 
-        # RUN ONLY ON NEW IMAGE
         if "last_image" not in st.session_state or st.session_state.last_image != file_bytes:
             st.session_state.last_image = file_bytes
 
@@ -127,21 +129,23 @@ if st.session_state.page == "Home":
 
         data = st.session_state.result_data
 
-        # ---------- RESULT (VERTICAL) ----------
+        # RESULT
         st.success(f"RESULT: {data['result']}")
         st.info(f"CONFIDENCE: {data['confidence']}%")
         st.warning(f"CONDITION: {data['condition']}")
 
-        # ---------- PIE ----------
+        # PIE SAFE
         st.subheader("Leaf Analysis")
 
+        values = [data["green"], data["yellow"], data["brown"]]
+
+        if sum(values) == 0:
+            values = [34, 33, 33]
+
         fig, ax = plt.subplots()
-        ax.pie(
-            [data["green"], data["yellow"], data["brown"]],
-            labels=["Green","Yellow","Brown"],
-            autopct='%1.1f%%',
-            colors=["green","yellow","brown"]
-        )
+        ax.pie(values, labels=["Green","Yellow","Brown"],
+               autopct='%1.1f%%',
+               colors=["green","yellow","brown"])
         ax.axis('equal')
         st.pyplot(fig)
 
@@ -170,37 +174,44 @@ elif st.session_state.page == "History":
     if not st.session_state.history:
         st.info("No data yet")
 
-    for item in st.session_state.history:
+    else:
+        for i, item in enumerate(st.session_state.history):
 
-        col1, col2 = st.columns([1,3])
+            col1, col2 = st.columns([1,3])
 
-        with col1:
-            st.image(item["image"], width=100)
+            with col1:
+                st.image(item["image"], width=100)
 
-        with col2:
-            st.write(f"**Name:** {item['name']}")
-            st.write(f"Result: {item['result']}")
-            st.write(f"Confidence: {item['confidence']}%")
-            st.write(f"Condition: {item['condition']}")
+            with col2:
+                st.write(f"**Name:** {item['name']}")
+                st.write(f"Result: {item['result']}")
+                st.write(f"Confidence: {item['confidence']}%")
+                st.write(f"Condition: {item['condition']}")
 
-            buffer = io.BytesIO()
-            doc = SimpleDocTemplate(buffer)
-            styles = getSampleStyleSheet()
+                buffer = io.BytesIO()
+                doc = SimpleDocTemplate(buffer)
+                styles = getSampleStyleSheet()
 
-            content = []
-            content.append(Paragraph(f"Leaf Name: {item['name']}", styles["Normal"]))
-            content.append(Spacer(1, 10))
-            content.append(Paragraph(f"Result: {item['result']}", styles["Normal"]))
-            content.append(Paragraph(f"Confidence: {item['confidence']}%", styles["Normal"]))
-            content.append(Paragraph(f"Condition: {item['condition']}", styles["Normal"]))
+                content = []
+                content.append(Paragraph(f"Leaf Name: {item['name']}", styles["Normal"]))
+                content.append(Spacer(1, 10))
+                content.append(Paragraph(f"Result: {item['result']}", styles["Normal"]))
+                content.append(Paragraph(f"Confidence: {item['confidence']}%", styles["Normal"]))
+                content.append(Paragraph(f"Condition: {item['condition']}", styles["Normal"]))
 
-            doc.build(content)
+                doc.build(content)
 
-            st.download_button(
-                "Download Report",
-                buffer.getvalue(),
-                file_name=f"{item['name']}.pdf"
-            )
+                st.download_button(
+                    "Download Report",
+                    buffer.getvalue(),
+                    file_name=f"{item['name']}.pdf",
+                    key=f"download_{i}"
+                )
+
+        # -------- DOWNLOAD ALL --------
+        st.markdown("---")
+        if st.button("Download All Reports"):
+            st.success("Download individual reports above")
 
 # ---------- ANALYTICS ----------
 elif st.session_state.page == "Analytics":
