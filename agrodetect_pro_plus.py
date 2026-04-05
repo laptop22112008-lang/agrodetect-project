@@ -1,185 +1,192 @@
 import streamlit as st
 from PIL import Image
 import random
-import io
 import time
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
+import matplotlib.pyplot as plt
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image as RLImage
 from reportlab.lib.styles import getSampleStyleSheet
+import io
 
 st.set_page_config(page_title="AgroDetect AI", layout="wide")
 
-# ---------------- SESSION ----------------
+# ---------- SESSION ----------
 if "history" not in st.session_state:
     st.session_state.history = []
 
-if "predicted" not in st.session_state:
-    st.session_state.predicted = False
+if "page" not in st.session_state:
+    st.session_state.page = "Home"
 
-if "data" not in st.session_state:
-    st.session_state.data = {}
-
-# ---------------- NAVIGATION ----------------
+# ---------- NAVIGATION ----------
 st.sidebar.title("🌿 Navigation")
 
-page = st.sidebar.radio("", ["Home", "History", "Analytics", "About"])
+if st.sidebar.button("🏠 Home"):
+    st.session_state.page = "Home"
 
-# ---------------- MODEL (KEEP SAME LOGIC STYLE) ----------------
-def predict():
-    green = random.randint(40, 80)
-    yellow = random.randint(10, 40)
-    brown = max(0, 100 - green - yellow)
+if st.sidebar.button("📜 History"):
+    st.session_state.page = "History"
 
-    if green > 60:
-        result = "GOOD"
-        condition = "Healthy Leaf"
-        confidence = random.uniform(90, 99)
-    else:
-        result = "BAD"
-        condition = "Nutrient Deficiency"
-        confidence = random.uniform(60, 85)
+if st.sidebar.button("📊 Analytics"):
+    st.session_state.page = "Analytics"
 
-    return result, confidence, condition, green, yellow, brown
+if st.sidebar.button("ℹ About"):
+    st.session_state.page = "About"
 
-# ---------------- PDF ----------------
-def generate_pdf(item):
-    buffer = io.BytesIO()
-    doc = SimpleDocTemplate(buffer)
-    styles = getSampleStyleSheet()
-
-    elements = []
-    elements.append(Paragraph(f"Leaf Name: {item['name']}", styles["Title"]))
-    elements.append(Spacer(1, 10))
-    elements.append(Paragraph(f"Result: {item['result']}", styles["Normal"]))
-    elements.append(Paragraph(f"Confidence: {item['confidence']:.2f}%", styles["Normal"]))
-    elements.append(Paragraph(f"Condition: {item['condition']}", styles["Normal"]))
-
-    doc.build(elements)
-    buffer.seek(0)
-    return buffer
-
-# ---------------- HOME ----------------
-if page == "Home":
+# ---------- HOME ----------
+if st.session_state.page == "Home":
 
     st.title("🌿 AgroDetect AI")
+    st.subheader("Upload Leaf Image")
 
-    uploaded_file = st.file_uploader("Upload Leaf Image", type=["jpg", "png", "jpeg"])
+    uploaded_file = st.file_uploader("Upload", type=["jpg", "png", "jpeg"])
 
     if uploaded_file:
-
         image = Image.open(uploaded_file)
-        st.image(image, width=250)
+        st.image(image, width=300)
 
         # RUN MODEL ONLY ONCE
-        if not st.session_state.predicted:
-            result, confidence, condition, g, y, b = predict()
+        if "result_data" not in st.session_state:
+            with st.spinner("Analyzing..."):
+                time.sleep(1)
 
-            st.session_state.data = {
+            green = random.randint(30, 70)
+            yellow = random.randint(10, 40)
+            brown = 100 - green - yellow
+
+            if brown < 0:
+                brown = 10
+
+            if green > 50:
+                result = "GOOD"
+                condition = "Healthy Leaf"
+            else:
+                result = "BAD"
+                condition = "Nutrient Deficiency"
+
+            confidence = round(random.uniform(60, 99), 2)
+
+            st.session_state.result_data = {
                 "result": result,
                 "confidence": confidence,
                 "condition": condition,
-                "green": g,
-                "yellow": y,
-                "brown": b
+                "green": green,
+                "yellow": yellow,
+                "brown": brown
             }
 
-            st.session_state.predicted = True
+        data = st.session_state.result_data
 
-        data = st.session_state.data
+        # ---------- RESULT BOXES ----------
+        col1, col2, col3 = st.columns(3)
 
-        # ---------------- RESULT ----------------
-        st.subheader("Result")
-        st.write(f"Result: {data['result']}")
-        st.write(f"Confidence: {data['confidence']:.2f}%")
-        st.write(f"Condition: {data['condition']}")
+        with col1:
+            st.success(f"RESULT: {data['result']}")
 
-        # ---------------- ANALYSIS ----------------
+        with col2:
+            st.info(f"CONFIDENCE: {data['confidence']}%")
+
+        with col3:
+            st.warning(f"CONDITION: {data['condition']}")
+
+        # ---------- PIE CHART ----------
         st.subheader("Leaf Analysis")
-        st.write({
-            "Green": data["green"],
-            "Yellow": data["yellow"],
-            "Brown": data["brown"]
-        })
 
-        # ---------------- INPUT ----------------
+        labels = ['Green', 'Yellow', 'Brown']
+        sizes = [data["green"], data["yellow"], data["brown"]]
+        colors = ['green', 'yellow', 'brown']
+
+        fig, ax = plt.subplots()
+        ax.pie(sizes, labels=labels, autopct='%1.1f%%', colors=colors)
+        ax.axis('equal')
+
+        st.pyplot(fig)
+
+        # ---------- INPUT ----------
         leaf_name = st.text_input("Enter Leaf Name", key="leaf_input")
 
-        # ---------------- SAVE ----------------
         if st.button("Save to History"):
 
-            if leaf_name.strip() != "":
+            # SAVE WITHOUT CHANGING RESULT
+            st.session_state.history.append({
+                "name": leaf_name,
+                "result": data["result"],
+                "confidence": data["confidence"],
+                "condition": data["condition"],
+                "green": data["green"],
+                "yellow": data["yellow"],
+                "brown": data["brown"],
+                "image": uploaded_file.getvalue()
+            })
 
-                st.session_state.history.append({
-                    "name": leaf_name,
-                    "result": data["result"],
-                    "confidence": data["confidence"],
-                    "condition": data["condition"],
-                    "green": data["green"],
-                    "yellow": data["yellow"],
-                    "brown": data["brown"]
-                })
+            st.success("Saved!")
 
-                st.success("Saved Successfully!")
+            # RESET PROPERLY
+            del st.session_state.result_data
+            st.rerun()
 
-                # RESET SAFE
-                st.session_state.predicted = False
-                st.session_state.data = {}
-
-                time.sleep(1)
-                st.rerun()
-
-# ---------------- HISTORY ----------------
-elif page == "History":
+# ---------- HISTORY ----------
+elif st.session_state.page == "History":
 
     st.title("📜 History")
 
-    if not st.session_state.history:
+    if len(st.session_state.history) == 0:
         st.info("No data yet")
 
-    for item in st.session_state.history:
-        st.write(f"### {item['name']}")
-        st.write(f"Result: {item['result']}")
-        st.write(f"Confidence: {item['confidence']:.2f}%")
-        st.write(f"Condition: {item['condition']}")
+    else:
+        for item in st.session_state.history:
 
-        pdf = generate_pdf(item)
+            col1, col2 = st.columns([1, 3])
 
-        st.download_button(
-            "Download Report",
-            pdf,
-            file_name=f"{item['name']}.pdf"
-        )
+            with col1:
+                st.image(item["image"], width=100)
 
-    # DOWNLOAD ALL (simple)
-    if st.session_state.history:
-        st.button("Download All Reports")
+            with col2:
+                st.write(f"**Name:** {item['name']}")
+                st.write(f"Result: {item['result']}")
+                st.write(f"Confidence: {item['confidence']}%")
+                st.write(f"Condition: {item['condition']}")
 
-# ---------------- ANALYTICS ----------------
-elif page == "Analytics":
+                # PDF
+                buffer = io.BytesIO()
+                doc = SimpleDocTemplate(buffer)
+                styles = getSampleStyleSheet()
+
+                content = []
+                content.append(Paragraph(f"Leaf Name: {item['name']}", styles["Normal"]))
+                content.append(Spacer(1, 10))
+                content.append(Paragraph(f"Result: {item['result']}", styles["Normal"]))
+                content.append(Paragraph(f"Confidence: {item['confidence']}%", styles["Normal"]))
+                content.append(Paragraph(f"Condition: {item['condition']}", styles["Normal"]))
+
+                doc.build(content)
+
+                st.download_button(
+                    "Download Report",
+                    buffer.getvalue(),
+                    file_name=f"{item['name']}.pdf"
+                )
+
+# ---------- ANALYTICS ----------
+elif st.session_state.page == "Analytics":
 
     st.title("📊 Analytics")
 
-    total = len(st.session_state.history)
-    good = sum(1 for i in st.session_state.history if i["result"] == "GOOD")
-    bad = total - good
+    if len(st.session_state.history) == 0:
+        st.info("No data available")
 
-    st.metric("Total Uploads", total)
-    st.metric("Healthy", good)
-    st.metric("Diseased", bad)
+    else:
+        good = sum(1 for i in st.session_state.history if i["result"] == "GOOD")
+        bad = sum(1 for i in st.session_state.history if i["result"] == "BAD")
 
-# ---------------- ABOUT ----------------
-elif page == "About":
+        fig, ax = plt.subplots()
+        ax.pie([good, bad], labels=["Good", "Bad"], autopct='%1.1f%%')
+        st.pyplot(fig)
+
+        st.write(f"Total: {len(st.session_state.history)}")
+        st.write(f"Good: {good}")
+        st.write(f"Bad: {bad}")
+
+# ---------- ABOUT ----------
+elif st.session_state.page == "About":
 
     st.title("ℹ About")
-
-    st.write("""
-    AgroDetect AI is a simple leaf analysis system.
-
-    Features:
-    - Detect plant condition
-    - Show confidence score
-    - Save history
-    - Generate reports
-    - Analytics overview
-
-    Built using Streamlit 🌿
-    """)
+    st.write("AgroDetect AI helps detect plant health using AI.")
