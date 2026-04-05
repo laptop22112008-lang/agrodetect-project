@@ -73,29 +73,31 @@ def analyze_leaf(image):
         yellow = int((yellow / total_color) * 100)
         brown = 100 - green - yellow
 
-    # -------- RELAXED DECISION --------
-    if green_ratio > 0.48 and brown_ratio < 0.08:
+    # -------- BALANCED DECISION (FINAL FIX) --------
+    if green_ratio > 0.55 and brown_ratio < 0.07 and yellow_ratio < 0.20:
         result = "GOOD"
         condition = "Healthy Leaf"
-        confidence = round(70 + green_ratio * 30, 2)
+        confidence = round(75 + green_ratio * 20, 2)
 
-    elif brown_ratio > 0.18:
+    elif brown_ratio > 0.12:
         result = "BAD"
         condition = "Disease (Brown Damage)"
-        confidence = round(65 + brown_ratio * 35, 2)
+        confidence = round(65 + brown_ratio * 30, 2)
 
-    elif yellow_ratio > 0.28:
+    elif yellow_ratio > 0.25:
         result = "BAD"
         condition = "Nutrient Deficiency"
-        confidence = round(60 + yellow_ratio * 30, 2)
+        confidence = round(60 + yellow_ratio * 25, 2)
+
+    elif green_ratio > 0.45:
+        result = "GOOD"
+        condition = "Mostly Healthy (Minor Yellowing)"
+        confidence = round(65 + green_ratio * 20, 2)
 
     else:
-        result = "GOOD"
-        condition = "Mostly Healthy (Minor Variation)"
-        confidence = round(65 + green_ratio * 25, 2)
-
-    return result, confidence, condition, green, yellow, brown
-
+        result = "BAD"
+        condition = "Stress / Early Issue"
+        confidence = round(55 + (yellow_ratio + brown_ratio) * 30, 2)
 # ---------- HOME ----------
 if st.session_state.page == "Home":
 
