@@ -8,13 +8,7 @@ import io
 import hashlib
 import time
 
-from reportlab.platypus import (
-    SimpleDocTemplate,
-    Paragraph,
-    Spacer,
-    Image as RLImage,
-    PageBreak,
-)
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image as RLImage, PageBreak
 from reportlab.lib.styles import getSampleStyleSheet
 
 # ─────────────────────────────────────────
@@ -257,6 +251,7 @@ def make_pie_figure(values, colors, labels):
         startangle=90,
         wedgeprops={"edgecolor": "#0c1722", "linewidth": 2},
         pctdistance=0.72,
+        labels=None,
     )
 
     legend = ax.legend(
@@ -308,6 +303,7 @@ def build_report_story(item, styles):
     )
     pie_buf = figure_to_bytes(pie_fig)
     story.append(RLImage(pie_buf, width=200, height=200))
+
     return story
 
 
@@ -443,26 +439,13 @@ if st.session_state.page == "Home":
 
     st.markdown("#### 🔎 Scan a leaf to detect plant health")
 
-    source = st.radio(
-        "Input source",
-        ["📁 Upload Image", "📷 Use Camera"],
-        horizontal=True,
-        label_visibility="collapsed",
-    )
-
     image = None
     uploaded_bytes = None
 
-    if source == "📁 Upload Image":
-        f = st.file_uploader("Upload", type=["jpg", "jpeg", "png"], label_visibility="collapsed")
-        if f:
-            uploaded_bytes = f.getvalue()
-            image = Image.open(io.BytesIO(uploaded_bytes))
-    else:
-        cam = st.camera_input("Point your camera at the leaf and press capture")
-        if cam:
-            uploaded_bytes = cam.getvalue()
-            image = Image.open(io.BytesIO(uploaded_bytes))
+    f = st.file_uploader("Upload", type=["jpg", "jpeg", "png"], label_visibility="collapsed")
+    if f:
+        uploaded_bytes = f.getvalue()
+        image = Image.open(io.BytesIO(uploaded_bytes))
 
     if image and uploaded_bytes:
         file_hash = hashlib.sha256(uploaded_bytes).hexdigest()
@@ -574,7 +557,7 @@ if st.session_state.page == "Home":
 
         st.markdown('</div>', unsafe_allow_html=True)
     else:
-        st.info("⬆️ Upload an image or use your camera above to scan a leaf.")
+        st.info("⬆️ Upload an image above to scan a leaf.")
 
 # ─────────────────────────────────────────
 # HISTORY
@@ -785,4 +768,4 @@ elif st.session_state.page == "About":
 </div>
 """,
             unsafe_allow_html=True,
-    )
+                )
