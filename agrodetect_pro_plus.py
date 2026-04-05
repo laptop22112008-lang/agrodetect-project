@@ -130,6 +130,7 @@ div[data-baseweb="tab-highlight"], div[data-baseweb="tab-border"] { display: non
 
 body { background-color: #0f1a10; color: #e0e0e0; }
 h1, h2, h3 { font-family: 'Sora', sans-serif; color: #e8f5e9; }
+
 .stButton>button {
     background: linear-gradient(135deg, #2e7d32, #43a047);
     color: white; border: none; border-radius: 8px;
@@ -228,6 +229,46 @@ TREATMENTS = {
 # ─────────────────────────────────────────
 # HELPERS
 # ─────────────────────────────────────────
+def is_leaf(image: Image.Image) -> bool:
+    """
+    Reject obvious non-leaf uploads.
+    This keeps the app focused on plant leaves and helps block random images
+    like cartoons, people, solid backgrounds, and non-plant objects.
+    """
+    img = np.array(image.convert("RGB")).astype(np.float32)
+    rgb_norm = img / 255.0
+    hsv = rgb_to_hsv(rgb_norm)
+
+    h = hsv[:, :, 0] * 360.0
+    s = hsv[:, :, 1]
+    v = hsv[:, :, 2]
+
+    total_px = h.size
+
+    green_px = ((h >= 55) & (h <= 165) & (s > 0.12) & (v > 0.10)).sum()
+    yellow_px = ((h >= 30) & (h < 60) & (s > 0.15) & (v > 0.25)).sum()
+    brown_px = ((h >= 0) & (h < 35) & (s > 0.12) & (v > 0.10) & (v < 0.85)).sum()
+
+    plant_ratio = (green_px + yellow_px + brown_px) / total_px
+    strong_green_ratio = ((h >= 60) & (h <= 150) & (s > 0.18)).sum() / total_px
+    strong_yellow_ratio = ((h >= 30) & (h < 60) & (s > 0.18)).sum() / total_px
+
+    # Needs enough plant-like pixels and at least some leaf-ish structure.
+    # This rejects most non-leaf images, including yellow cartoon pictures.
+    if plant_ratio < 0.12:
+        return False
+
+    # Very yellow-only / cartoon-like images should be rejected.
+    if strong_green_ratio < 0.03 and strong_yellow_ratio > 0.55:
+        return False
+
+    # A real leaf usually has at least a little green or brown variation.
+    if strong_green_ratio < 0.04 and brown_px / total_px < 0.03 and yellow_px / total_px < 0.15:
+        return False
+
+    return True
+
+
 def safe_pie_values(values):
     arr = np.array(values, dtype=float)
     total = float(arr.sum())
@@ -421,6 +462,11 @@ with tab_dashboard:
             image = Image.open(io.BytesIO(uploaded_bytes))
 
     if image and uploaded_bytes:
+        if not is_leaf(image):
+            st.image(image, use_container_width=True, caption="Uploaded Image")
+            st.error("This does not look like a leaf image. Please upload a clear leaf photo.")
+            st.stop()
+
         file_hash = hashlib.sha256(uploaded_bytes).hexdigest()
         result, confidence, condition, pie_values = analyze_leaf(image)
         severity_label, severity_class = get_severity(result, confidence, condition)
@@ -521,7 +567,7 @@ with tab_dashboard:
                 st.success(f"✅ '{leaf_name}' saved to history!")
                 st.rerun()
     else:
-        st.info("⬆️ Upload an image or use your camera above to scan a leaf.")
+        st.info("⬆️ Upload a leaf image or use your camera above to scan a leaf.")
 
 # ══════════════════════════════════════════
 # ANALYTICS
@@ -682,11 +728,11 @@ with tab_history:
                 <details>
                     <summary style='color:#81c784;cursor:pointer;font-size:0.85rem;
                                     font-family:Sora,sans-serif;font-weight:600'>
-                        View Treatment Tips
+                        💡 View Treatment Tips
                     </summary>
                     <div class='{card_class}' style='margin-top:10px'>
                         <b style='font-family:Sora,sans-serif;color:#e8f5e9;font-size:0.95rem'>
-                            {t_data["title"]}
+                            {t_data["icon"]} {t_data["title"]}
                         </b>
                         <ul style='padding-left:16px;margin-top:8px'>
                             {tips_html}
