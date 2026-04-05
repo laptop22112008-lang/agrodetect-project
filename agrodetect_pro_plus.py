@@ -1,12 +1,14 @@
 import streamlit as st
 from PIL import Image
 import numpy as np
-import time
 import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
+from datetime import datetime
+import io
+import hashlib
+
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image as RLImage, PageBreak
 from reportlab.lib.styles import getSampleStyleSheet
-import io
-from datetime import datetime
 
 # ─────────────────────────────────────────
 #  CONFIG
@@ -215,14 +217,17 @@ if "history" not in st.session_state:
 if "page" not in st.session_state:
     st.session_state.page = "Home"
 
-if "last_image" not in st.session_state:
-    st.session_state.last_image = None
-
 if "result_data" not in st.session_state:
     st.session_state.result_data = None
 
 if "input_key" not in st.session_state:
     st.session_state.input_key = 0
+
+if "flash_message" not in st.session_state:
+    st.session_state.flash_message = ""
+
+if "saved_hashes" not in st.session_state:
+    st.session_state.saved_hashes = []
 
 # ─────────────────────────────────────────
 #  HELPERS
@@ -266,6 +271,7 @@ def build_report_story(item, styles):
     img_buf = io.BytesIO(item["image_bytes"])
     img_buf.seek(0)
     story.append(RLImage(img_buf, width=200, height=200))
+
     story.append(Spacer(1, 10))
 
     pie_fig = make_pie_figure(
@@ -346,7 +352,7 @@ def analyze_leaf(image):
 
     elif brown_ratio > 0.12:
         result = "BAD"
-        condition = "Disease (Brown Damage)"
+        condition = "Disease Detected"
         confidence = round(65 + brown_ratio * 30, 2)
 
     elif yellow_ratio > 0.25:
@@ -402,6 +408,10 @@ st.sidebar.caption("Distinct UI · same analysis brain")
 #  HOME
 # ─────────────────────────────────────────
 if st.session_state.page == "Home":
+    if st.session_state.flash_message:
+        st.success(st.session_state.flash_message)
+        st.session_state.flash_message = ""
+
     st.markdown("#### 🔎 Scan a leaf to detect plant health")
 
     source = st.radio(
@@ -412,18 +422,42 @@ if st.session_state.page == "Home":
     )
 
     image = None
+    uploaded_bytes = None
+
     if source == "📁 Upload Image":
         f = st.file_uploader("Upload", type=["jpg", "jpeg", "png"], label_visibility="collapsed")
         if f:
-            image = Image.open(f)
+            uploaded_bytes = f.getvalue()
+            image = Image.open(io.BytesIO(uploaded_bytes))
     else:
         cam = st.camera_input("Point your camera at the leaf and press capture")
         if cam:
-            image = Image.open(cam)
+            uploaded_bytes = cam.getvalue()
+            image = Image.open(io.BytesIO(uploaded_bytes))
 
-    if image:
-        result, confidence, condition, green, yellow, brown = analyze_leaf(image)
-        pie_values = safe_pie_values([green, yellow, brown])
+    if image and uploaded_bytes:
+        file_hash = hashlib.sha256(uploaded_bytes).hexdigest()
+
+        if st.session_state.result_data is None or st.session_state.result_data.get("scan_hash") != file_hash:
+            with st.spinner("Analyzing..."):
+                time.sleep(0.8)
+
+            result, confidence, condition, green, yellow, brown = analyze_leaf(image)
+            pie_values = safe_pie_values([green, yellow, brown])
+
+            st.session_state.result_data = {
+                "scan_hash": file_hash,
+                "result": result,
+                "confidence": confidence,
+                "condition": condition,
+                "green": green,
+                "yellow": yellow,
+                "brown": brown,
+                "pie_values": pie_values,
+                "image_bytes": uploaded_bytes,
+            }
+
+        data = st.session_state.result_data
 
         col_img, col_result = st.columns([1, 1], gap="large")
 
@@ -436,29 +470,29 @@ if st.session_state.page == "Home":
             st.markdown('<div class="main-card">', unsafe_allow_html=True)
             st.markdown("##### 🔬 Analysis Result")
 
-            badge_class = "good-badge" if result == "GOOD" else "bad-badge"
-            icon = "✅" if result == "GOOD" else "⚠️"
+            badge_class = "good-badge" if data["result"] == "GOOD" else "bad-badge"
+            icon = "✅" if data["result"] == "GOOD" else "⚠️"
             st.markdown(
-                f"<span class='{badge_class}'>{icon} {result}</span>",
+                f"<span class='{badge_class}'>{icon} {data['result']}</span>",
                 unsafe_allow_html=True
             )
             st.write("")
-            st.markdown(f"**Condition:** {condition}")
-            st.progress(min(int(confidence), 100))
-            st.caption(f"Confidence: **{confidence}%**")
+            st.markdown(f"**Condition:** {data['condition']}")
+            st.progress(min(int(data["confidence"]), 100))
+            st.caption(f"Confidence: **{data['confidence']}%**")
 
             st.write("")
             c1, c2, c3 = st.columns(3)
             c1.markdown(
-                f"<div class='stat-card'><div class='soft-label'>Green</div><div class='soft-value' style='color:#99f6e4'>{pie_values[0]:.0f}%</div></div>",
+                f"<div class='stat-card'><div class='soft-label'>Green</div><div class='soft-value' style='color:#99f6e4'>{data['pie_values'][0]:.0f}%</div></div>",
                 unsafe_allow_html=True
             )
             c2.markdown(
-                f"<div class='stat-card'><div class='soft-label'>Yellow</div><div class='soft-value' style='color:#fde68a'>{pie_values[1]:.0f}%</div></div>",
+                f"<div class='stat-card'><div class='soft-label'>Yellow</div><div class='soft-value' style='color:#fde68a'>{data['pie_values'][1]:.0f}%</div></div>",
                 unsafe_allow_html=True
             )
             c3.markdown(
-                f"<div class='stat-card'><div class='soft-label'>Brown</div><div class='soft-value' style='color:#fecaca'>{pie_values[2]:.0f}%</div></div>",
+                f"<div class='stat-card'><div class='soft-label'>Brown</div><div class='soft-value' style='color:#fecaca'>{data['pie_values'][2]:.0f}%</div></div>",
                 unsafe_allow_html=True
             )
             st.markdown('</div>', unsafe_allow_html=True)
@@ -468,7 +502,7 @@ if st.session_state.page == "Home":
         st.markdown('<div class="analysis-card">', unsafe_allow_html=True)
         st.markdown("#### 📊 Leaf Colour Composition")
         fig = make_pie_figure(
-            pie_values,
+            data["pie_values"],
             ["#14b8a6", "#f59e0b", "#fb7185"],
             ["Green", "Yellow", "Brown"]
         )
@@ -486,21 +520,29 @@ if st.session_state.page == "Home":
 
         if st.button("💾 Save to History"):
             save_name = leaf_name.strip() if leaf_name.strip() else f"Leaf Scan {len(st.session_state.history)+1}"
-            st.session_state.history.append({
-                "name": save_name,
-                "result": result,
-                "confidence": confidence,
-                "condition": condition,
-                "green": pie_values[0],
-                "yellow": pie_values[1],
-                "brown": pie_values[2],
-                "pie_values": pie_values,
-                "image_bytes": image_to_bytes(image),
-                "timestamp": datetime.now().strftime("%d %b %Y, %I:%M %p")
-            })
-            st.session_state.input_key += 1
-            st.success(f"✅ '{save_name}' saved to history!")
-            st.rerun()
+
+            if file_hash in st.session_state.saved_hashes:
+                st.session_state.flash_message = "This leaf is already saved in history."
+            else:
+                st.session_state.history.append({
+                    "name": save_name,
+                    "result": data["result"],
+                    "confidence": data["confidence"],
+                    "condition": data["condition"],
+                    "green": data["green"],
+                    "yellow": data["yellow"],
+                    "brown": data["brown"],
+                    "pie_values": data["pie_values"],
+                    "image_bytes": data["image_bytes"],
+                    "timestamp": datetime.now().strftime("%d %b %Y, %I:%M %p"),
+                    "scan_hash": file_hash
+                })
+                st.session_state.saved_hashes.append(file_hash)
+                st.session_state.flash_message = f"✅ '{save_name}' saved to history!"
+                st.session_state.input_key += 1
+                st.session_state.result_data = None
+                st.rerun()
+
         st.markdown('</div>', unsafe_allow_html=True)
     else:
         st.info("⬆️ Upload an image or use your camera above to scan a leaf.")
@@ -525,9 +567,11 @@ elif st.session_state.page == "History":
     else:
         if st.button("🗑️ Clear All History"):
             st.session_state.history = []
+            st.session_state.saved_hashes = []
+            st.session_state.result_data = None
             st.rerun()
 
-        for idx, item in enumerate(reversed(st.session_state.history), 1):
+        for idx, item in enumerate(st.session_state.history, 1):
             badge = "good-badge" if item["result"] == "GOOD" else "bad-badge"
             icon = "✅" if item["result"] == "GOOD" else "⚠️"
             sev = item.get("severity", "")
