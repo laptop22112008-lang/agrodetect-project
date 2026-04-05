@@ -1,6 +1,6 @@
 import streamlit as st
 from PIL import Image
-import random
+import numpy as np
 import time
 import matplotlib.pyplot as plt
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
@@ -31,6 +31,35 @@ if st.sidebar.button("📊 Analytics"):
 if st.sidebar.button("ℹ About"):
     st.session_state.page = "About"
 
+# ---------- MODEL (COLOR BASED) ----------
+def analyze_leaf(image):
+    img = np.array(image)
+
+    r = np.mean(img[:,:,0])
+    g = np.mean(img[:,:,1])
+    b = np.mean(img[:,:,2])
+
+    # normalize
+    total = r + g + b
+    r /= total
+    g /= total
+    b /= total
+
+    green = int(g * 100)
+    yellow = int((r + g)/2 * 100 - green//2)
+    brown = max(0, 100 - green - yellow)
+
+    if g > r and g > b:
+        result = "GOOD"
+        condition = "Healthy Leaf"
+    else:
+        result = "BAD"
+        condition = "Unhealthy / Diseased"
+
+    confidence = round(max(g, r, b) * 100, 2)
+
+    return result, confidence, condition, green, yellow, brown
+
 # ---------- HOME ----------
 if st.session_state.page == "Home":
 
@@ -45,27 +74,14 @@ if st.session_state.page == "Home":
 
         file_bytes = uploaded_file.getvalue()
 
-        # ---------- MODEL RUN ONLY ON NEW IMAGE ----------
+        # RUN ONLY ON NEW IMAGE
         if "last_image" not in st.session_state or st.session_state.last_image != file_bytes:
             st.session_state.last_image = file_bytes
 
             with st.spinner("Analyzing..."):
                 time.sleep(1)
 
-            green = random.randint(30, 70)
-            yellow = random.randint(10, 40)
-            brown = 100 - green - yellow
-            if brown < 0:
-                brown = 10
-
-            if green > 50:
-                result = "GOOD"
-                condition = "Healthy Leaf"
-            else:
-                result = "BAD"
-                condition = "Nutrient Deficiency"
-
-            confidence = round(random.uniform(60, 99), 2)
+            result, confidence, condition, green, yellow, brown = analyze_leaf(image)
 
             st.session_state.result_data = {
                 "result": result,
@@ -78,19 +94,12 @@ if st.session_state.page == "Home":
 
         data = st.session_state.result_data
 
-        # ---------- RESULT BOXES ----------
-        col1, col2, col3 = st.columns(3)
+        # ---------- RESULT (VERTICAL FIXED) ----------
+        st.success(f"RESULT: {data['result']}")
+        st.info(f"CONFIDENCE: {data['confidence']}%")
+        st.warning(f"CONDITION: {data['condition']}")
 
-        with col1:
-            st.success(f"RESULT: {data['result']}")
-
-        with col2:
-            st.info(f"CONFIDENCE: {data['confidence']}%")
-
-        with col3:
-            st.warning(f"CONDITION: {data['condition']}")
-
-        # ---------- PIE CHART ----------
+        # ---------- PIE ----------
         st.subheader("Leaf Analysis")
 
         labels = ['Green', 'Yellow', 'Brown']
@@ -143,7 +152,6 @@ elif st.session_state.page == "History":
                 st.write(f"Confidence: {item['confidence']}%")
                 st.write(f"Condition: {item['condition']}")
 
-                # ---------- PDF ----------
                 buffer = io.BytesIO()
                 doc = SimpleDocTemplate(buffer)
                 styles = getSampleStyleSheet()
@@ -189,22 +197,22 @@ elif st.session_state.page == "About":
     st.title("ℹ About AgroDetect AI")
 
     st.markdown("""
-### 🌿 What is AgroDetect AI?
-AgroDetect AI is an intelligent system designed to analyze plant leaf images and detect health conditions.
+### 🌿 AgroDetect AI
 
-### 🚀 Key Features
-- 📸 Upload leaf images instantly  
-- 🤖 AI-based health prediction  
-- 📊 Visual analysis using pie charts  
-- 🧾 Download detailed reports (PDF)  
-- 📂 Maintain history of analyzed leaves  
+AgroDetect AI is a smart plant leaf analysis system.
+
+### 🚀 Features
+- Detects leaf health condition
+- Shows confidence level
+- Visual pie chart analysis
+- Stores history of images
+- Downloadable reports
 
 ### 🎯 Purpose
-To help farmers, students, and researchers quickly identify plant issues and improve crop health.
+Helps farmers and students quickly identify plant health issues.
 
-### 💡 Future Improvements
-- Real deep learning model integration  
-- Disease-specific detection  
-- Mobile optimization  
-- Cloud database storage  
+### 🔮 Future Scope
+- Deep learning integration
+- Disease-specific detection
+- Mobile optimization
 """)
